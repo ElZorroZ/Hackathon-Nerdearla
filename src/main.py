@@ -233,3 +233,12 @@ if os.path.isdir(DIST_DIR):
             with open(path, "r", encoding="utf-8") as f:
                 return PlainTextResponse(f.read(), media_type="application/javascript")
         return PlainTextResponse("", media_type="application/javascript")
+
+    @app.get("/zorvex-logo.svg")
+    async def serve_logo():
+        path = os.path.join(DIST_DIR, "zorvex-logo.svg")
+        if os.path.exists(path):
+            from fastapi.responses import PlainTextResponse
+            with open(path, "r", encoding="utf-8") as f:
+                return PlainTextResponse(f.read(), media_type="image/svg+xml")
+        return PlainTextResponse("", media_type="image/svg+xml")

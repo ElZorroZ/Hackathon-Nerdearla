@@ -8,6 +8,7 @@ import { PlayIcon, type PlayIconHandle } from "@/components/ui/play-icon";
 import { WifiSyncIcon, type WifiSyncIconHandle } from "@/components/ui/wifi-sync-icon";
 import { SummaryModal } from "./components/SummaryModal";
 import { KeyMomentsPanel } from "./components/KeyMomentsPanel";
+import { MessageSquareTextIcon, type MessageSquareTextIconHandle } from "@/components/ui/message-square-text-icon";
 import {
   Select,
   SelectContent,
@@ -35,6 +36,7 @@ export function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [subtitles, setSubtitles] = useState<SubtitleEntry[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const aiIconRef = useRef<MessageSquareTextIconHandle>(null);
   const subtitleListRef = useRef<HTMLDivElement>(null);
 
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -111,9 +113,7 @@ export function App() {
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#4A90E2] to-[#64748B] rounded-xl flex items-center justify-center shadow-lg shadow-[#4A90E2]/20">
-                <Icon name="mic" className="w-5 h-5 text-white" />
-              </div>
+              <img src="/zorvex-logo.svg" alt="Zorvex Live" className="w-10 h-10 shrink-0" />
               <div>
                 <h1 className="text-lg font-bold text-white tracking-tight">Zorvex Live</h1>
                 <div className="flex items-center gap-2 mt-0.5">
@@ -270,10 +270,12 @@ export function App() {
           <button
             onClick={() => setShowSummary(true)}
             disabled={!selectedRoom}
+            onMouseEnter={() => aiIconRef.current?.startAnimation()}
+            onMouseLeave={() => aiIconRef.current?.stopAnimation()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all shrink-0 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Generar Resumen con IA"
           >
-            ✨
+            <MessageSquareTextIcon ref={aiIconRef} size={18} isAnimated={false} />
           </button>
         </div>
 
@@ -312,9 +314,6 @@ export function App() {
       </main>
 
       <footer className="border-t border-border px-6 py-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Zorvex Live · Subtítulos en vivo
-        </p>
       </footer>
 
       {showSummary && selectedRoom && (

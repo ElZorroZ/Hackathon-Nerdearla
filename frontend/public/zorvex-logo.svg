@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <g transform="translate(100, 90)">
+    <!-- Orejas (Azul) -->
+    <polygon points="30,50 110,30 80,140" fill="#0055A5" />
+    <polygon points="280,50 200,30 230,140" fill="#0055A5" />
+
+    <!-- Cara (Blanco y Azul) -->
+    <polygon points="20,140 290,140 155,320" fill="#FFFFFF" />
+    <polygon points="60,140 250,140 155,270" fill="#0055A5" />
+
+    <!-- Nariz (Negro) -->
+    <circle cx="155" cy="320" r="18" fill="#0F0F0F" />
+
+    <!-- Ondas de Audio (Señal de Transmisión) -->
+    <path d="M 330 120 Q 370 170 330 220" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" />
+    <path d="M 360 90 Q 420 170 360 250" fill="none" stroke="#0055A5" stroke-width="14" stroke-linecap="round" />
+  </g>
+</svg>

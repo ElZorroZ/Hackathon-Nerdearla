@@ -19,6 +19,7 @@ import { RefreshCwIcon, type RefreshCwIconHandle } from "@/components/ui/refresh
 import { MenuIcon, type MenuIconHandle } from "@/components/ui/menu-icon";
 import { SummaryModal } from "./components/SummaryModal";
 import { AudioQualityWidget } from "./components/AudioQualityWidget";
+import { MessageSquareTextIcon, type MessageSquareTextIconHandle } from "@/components/ui/message-square-text-icon";
 
 type AdminView = "dashboard" | "salas" | "glosario";
 
@@ -34,6 +35,7 @@ export function AdminApp() {
   const refreshIconRef = useRef<RefreshCwIconHandle>(null);
   const menuIconRef = useRef<MenuIconHandle>(null);
   const [showSummary, setShowSummary] = useState(false);
+  const aiIconRef = useRef<MessageSquareTextIconHandle>(null);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomLang, setNewRoomLang] = useState("ES");
@@ -384,8 +386,8 @@ export function AdminApp() {
         } shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200`}
       >
         <div className="flex items-center gap-2 p-4 border-b border-border">
-          <div className="w-9 h-9 bg-gradient-to-br from-[#4A90E2] to-[#64748B] rounded-lg flex items-center justify-center shrink-0">
-            <Icon name="dashboard" className="w-4 h-4 text-white" />
+          <div className="w-9 h-9 shrink-0">
+            <img src="/zorvex-logo.svg" alt="Zorvex Live" className="w-9 h-9" />
           </div>
           {sidebarOpen && (
             <div className="min-w-0">
@@ -579,9 +581,12 @@ export function AdminApp() {
                     <button
                       onClick={() => setShowSummary(true)}
                       disabled={!recordRoom}
-                      className="px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onMouseEnter={() => aiIconRef.current?.startAnimation()}
+                      onMouseLeave={() => aiIconRef.current?.stopAnimation()}
+                      className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ✨ Generar Resumen con IA
+                      <MessageSquareTextIcon ref={aiIconRef} size={18} isAnimated={false} />
+                      Generar Resumen con IA
                     </button>
                   </div>
                   <div className="max-w-sm">
