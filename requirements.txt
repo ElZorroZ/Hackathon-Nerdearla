@@ -1,4 +1,6 @@
-openai-whisper==20250625
+faster-whisper==1.2.1
+nvidia-cublas-cu12
+nvidia-cuda-runtime-cu12
 ollama==0.6.2
 fastapi==0.141.1
 uvicorn==0.53.0
