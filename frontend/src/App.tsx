@@ -8,6 +8,7 @@ import { PlayIcon, type PlayIconHandle } from "@/components/ui/play-icon";
 import { WifiSyncIcon, type WifiSyncIconHandle } from "@/components/ui/wifi-sync-icon";
 import { SummaryModal } from "./components/SummaryModal";
 import { KeyMomentsPanel } from "./components/KeyMomentsPanel";
+import { ReactionsBar } from "./components/ReactionsBar";
 import { MessageSquareTextIcon, type MessageSquareTextIconHandle } from "@/components/ui/message-square-text-icon";
 import {
   Select,
@@ -60,6 +61,7 @@ export function App() {
 
   const handleWsMessage = useCallback((data: SubtitleEntry) => {
     if (data.type === "metrics") return;
+    if (data.type === "reaction") return; // handled by ReactionsBar
     if (data.type === "key_moment") {
       window.dispatchEvent(new CustomEvent("key_moment", { detail: data }));
       return;
@@ -76,7 +78,7 @@ export function App() {
     });
   }, [selectedRoom]);
 
-  const { connected, reconnecting, flush } = useResilientWebSocket(wsUrl, {
+  const { connected, reconnecting, flush, ws } = useResilientWebSocket(wsUrl, {
     onMessage: handleWsMessage,
   });
 
@@ -109,13 +111,13 @@ export function App() {
   return (
     <div className="h-screen overflow-hidden bg-background text-foreground flex flex-col">
       {/* Header with room tabs + pause + OBS overlay */}
-      <header className="border-b border-border px-6 py-4">
+      <header className="border-b border-border px-4 py-3 sm:px-6 sm:py-4">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <img src="/zorvex-logo.svg" alt="Zorvex Live" className="w-10 h-10 shrink-0" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <img src="/zorvex-logo.svg" alt="Zorvex Live" className="w-8 h-8 sm:w-10 sm:h-10 shrink-0" />
               <div>
-                <h1 className="text-lg font-bold text-white tracking-tight">Zorvex Live</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Zorvex Live</h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="flex items-center gap-1.5 text-xs text-[#38A169] font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#38A169] pulse-dot" />
@@ -126,9 +128,9 @@ export function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {/* Connection status */}
-              <div className="flex items-center gap-2 text-xs bg-secondary border border-border px-3 py-1.5 rounded-lg">
+              <div className="flex items-center gap-2 text-xs bg-secondary border border-border px-2 py-1.5 sm:px-3 rounded-lg">
                 {reconnecting ? (
                   <WifiSyncIcon ref={wifiSyncRef} size={14} isAnimated={false} className="text-yellow-400" />
                 ) : (
@@ -158,7 +160,7 @@ export function App() {
               </div>
               <a
                 href="/admin"
-                className="flex items-center gap-2 bg-secondary hover:bg-accent border border-border px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground transition-all text-sm"
+                className="flex items-center gap-2 bg-secondary hover:bg-accent border border-border px-2 py-2 sm:px-3 rounded-lg text-muted-foreground hover:text-foreground transition-all text-sm"
               >
                 <Icon name="settings" className="w-4 h-4" />
                 <span className="hidden sm:inline">Panel de Producción</span>
@@ -169,11 +171,11 @@ export function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-5 flex flex-col gap-4 min-h-0 overflow-hidden">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-3 py-3 sm:px-6 sm:py-5 flex flex-col gap-3 sm:gap-4 min-h-0 overflow-hidden">
         {/* Toolbar: Combobox room search + lang select + font size select + export */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {/* Room search with @beui/combobox */}
-          <div className="w-56">
+          <div className="w-full sm:w-56">
             <Combobox value={selectedRoom} onValueChange={setSelectedRoom}>
               <ComboboxTrigger>
                 <ComboboxValue placeholder="Buscar sala..." />
@@ -205,7 +207,7 @@ export function App() {
           </div>
 
           {/* Language select with @beui/select */}
-          <div className="w-44">
+          <div className="w-32 sm:w-44">
             <Select value={lang} onValueChange={setLang}>
               <SelectTrigger>
                 <SelectValue placeholder="Idioma" />
@@ -219,7 +221,7 @@ export function App() {
           </div>
 
           {/* Font size select with @beui/select */}
-          <div className="w-32">
+          <div className="w-24 sm:w-32">
             <Select value={fontSize} onValueChange={setFontSize}>
               <SelectTrigger>
                 <SelectValue placeholder="Tamaño" />
@@ -313,11 +315,19 @@ export function App() {
         </div>
       </main>
 
-      <footer className="border-t border-border px-6 py-3 text-center">
+      <footer className="border-t border-border px-4 py-2 sm:px-6 sm:py-3 text-center">
       </footer>
 
       {showSummary && selectedRoom && (
         <SummaryModal room={selectedRoom} onClose={() => setShowSummary(false)} />
+      )}
+
+      {selectedRoom && (
+        <ReactionsBar
+          room={selectedRoom}
+          ws={ws.current}
+          onReactionReceived={() => {}}
+        />
       )}
     </div>
   );

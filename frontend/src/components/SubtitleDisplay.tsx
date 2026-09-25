@@ -105,7 +105,7 @@ export function SubtitleDisplay({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto px-5 py-4 space-y-3 scroll-smooth"
+      className="flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 space-y-2 sm:space-y-3 scroll-smooth"
     >
       {subtitles.map((s, i) => {
         const isLatest = i === subtitles.length - 1;

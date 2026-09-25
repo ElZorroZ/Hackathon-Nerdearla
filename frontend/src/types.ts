@@ -71,3 +71,10 @@ export interface KeyMomentsResponse {
   room: string;
   moments: KeyMoment[];
 }
+
+export interface ReactionEvent {
+  type: "reaction";
+  emoji: string;
+  room: string;
+  timestamp: number;
+}

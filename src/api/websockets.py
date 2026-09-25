@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Dict, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -89,7 +90,21 @@ def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str]):
 
         try:
             while True:
-                await ws.receive_text()
+                raw = await ws.receive_text()
+                # Parse incoming client messages (reactions, etc.)
+                try:
+                    msg = json.loads(raw)
+                    if msg.get("type") == "reaction":
+                        # Broadcast reaction to all clients in this room
+                        reaction_msg = {
+                            "type": "reaction",
+                            "emoji": msg.get("emoji", ""),
+                            "room": room_id,
+                            "timestamp": time.time(),
+                        }
+                        await ws_manager.broadcast_to_room(room_id, reaction_msg)
+                except (json.JSONDecodeError, KeyError):
+                    pass  # Ignore non-JSON or malformed messages
         except WebSocketDisconnect:
             pass
         finally:
