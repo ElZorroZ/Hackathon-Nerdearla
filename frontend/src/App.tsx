@@ -119,10 +119,22 @@ export function App() {
               <div>
                 <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Zorvex Live</h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="flex items-center gap-1.5 text-xs text-[#38A169] font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#38A169] pulse-dot" />
-                    EN VIVO
-                  </span>
+                  {connected && selectedRoom ? (
+                    <span className="flex items-center gap-1.5 text-xs text-[#38A169] font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#38A169] pulse-dot" />
+                      EN VIVO
+                    </span>
+                  ) : reconnecting ? (
+                    <span className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 pulse-dot" />
+                      Reconectando...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      OFFLINE
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">· {roomCount} Salas</span>
                 </div>
               </div>
