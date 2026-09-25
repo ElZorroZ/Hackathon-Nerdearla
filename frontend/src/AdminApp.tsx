@@ -384,12 +384,12 @@ export function AdminApp() {
         } shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200`}
       >
         <div className="flex items-center gap-2 p-4 border-b border-border">
-          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 bg-gradient-to-br from-[#4A90E2] to-[#64748B] rounded-lg flex items-center justify-center shrink-0">
             <Icon name="dashboard" className="w-4 h-4 text-white" />
           </div>
           {sidebarOpen && (
             <div className="min-w-0">
-              <h1 className="text-sm font-bold text-white truncate">LiveSubs</h1>
+              <h1 className="text-sm font-bold text-white truncate">Zorvex Live</h1>
               <p className="text-[10px] text-muted-foreground truncate">Admin Panel</p>
             </div>
           )}
@@ -443,15 +443,15 @@ export function AdminApp() {
               {view === "salas" && "Gestión de Salas"}
               {view === "glosario" && "Glosario"}
             </h2>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
             <button
               onClick={handleRefresh}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1"
               title="Refrescar"
             >
               <RefreshCwIcon ref={refreshIconRef} size={16} isAnimated={false} />
             </button>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
             <div
               className={`w-2 h-2 rounded-full ${
                 connected

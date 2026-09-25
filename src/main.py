@@ -1,5 +1,5 @@
 """
-Backend FastAPI - LiveSubs
+Backend FastAPI - Zorvex Live
 
 Rutas:
   GET  /                              - Frontend (cliente)
@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
     logger.info("Motor detenido.")
 
 
-app = FastAPI(title="LiveSubs - Subtítulos en vivo", lifespan=lifespan)
+app = FastAPI(title="Zorvex Live - Subtítulos en vivo", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------

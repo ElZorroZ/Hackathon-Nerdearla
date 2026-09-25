@@ -1,11 +1,11 @@
 {
-  "name": "LiveSubs",
-  "short_name": "LiveSubs",
+  "name": "Zorvex Live - Subtitulos en vivo",
+  "short_name": "Zorvex Live",
   "description": "Subtitulos en vivo",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a14",
-  "theme_color": "#6366f1",
+  "background_color": "#0B132B",
+  "theme_color": "#4A90E2",
   "orientation": "portrait",
   "icons": []
 }

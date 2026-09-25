@@ -111,14 +111,14 @@ export function App() {
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#4A90E2] to-[#64748B] rounded-xl flex items-center justify-center shadow-lg shadow-[#4A90E2]/20">
                 <Icon name="mic" className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-white tracking-tight">LiveSubs</h1>
+                <h1 className="text-lg font-bold text-white tracking-tight">Zorvex Live</h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="flex items-center gap-1.5 text-xs text-red-400 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 pulse-dot" />
+                  <span className="flex items-center gap-1.5 text-xs text-[#38A169] font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#38A169] pulse-dot" />
                     EN VIVO
                   </span>
                   <span className="text-xs text-muted-foreground">· {roomCount} Salas</span>
@@ -234,7 +234,15 @@ export function App() {
 
           {/* Sync button */}
           <button
-            onClick={() => flush()}
+            id="sync-btn"
+            onClick={() => {
+              flush();
+              const btn = document.getElementById('sync-btn');
+              if (btn) {
+                btn.classList.add('animate-spin');
+                setTimeout(() => btn.classList.remove('animate-spin'), 800);
+              }
+            }}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all shrink-0 bg-secondary border-border text-foreground hover:text-primary hover:border-primary/50"
             title="Sincronizar"
           >
@@ -305,7 +313,7 @@ export function App() {
 
       <footer className="border-t border-border px-6 py-3 text-center">
         <p className="text-xs text-muted-foreground">
-          LiveSubs · Subtítulos en vivo
+          Zorvex Live · Subtítulos en vivo
         </p>
       </footer>
 
