@@ -23,6 +23,7 @@ class SubtitleEntry:
     whisper_latency_ms: float = 0.0
     gemma_latency_ms: float = 0.0
     index: int = 0
+    translations: dict = field(default_factory=dict)  # lang -> texto traducido
 
     def __post_init__(self):
         if self.end_time == 0.0:

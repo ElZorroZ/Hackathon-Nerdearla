@@ -52,8 +52,12 @@ class WSConnectionManager:
         self.admin_connections -= dead
 
 
-def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str]):
-    """Registra los endpoints WebSocket."""
+def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str], on_room_lang=None):
+    """Registra los endpoints WebSocket.
+
+    on_room_lang: callable(room_id, lang) que se invoca cuando un cliente
+    elige un idioma destino (para que RoomManager traduzca a ese idioma).
+    """
 
     # IMPORTANT: /ws/admin must be registered BEFORE /ws/{room_id}
     # otherwise FastAPI matches "admin" as a room_id and rejects with 403.
@@ -103,6 +107,11 @@ def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str]):
                             "timestamp": time.time(),
                         }
                         await ws_manager.broadcast_to_room(room_id, reaction_msg)
+                    elif msg.get("type") == "lang" and on_room_lang:
+                        # Cliente pide un idioma destino para esta sala
+                        lang = msg.get("lang")
+                        if lang:
+                            on_room_lang(room_id, lang)
                 except (json.JSONDecodeError, KeyError):
                     pass  # Ignore non-JSON or malformed messages
         except WebSocketDisconnect:

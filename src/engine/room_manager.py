@@ -38,6 +38,7 @@ class RoomManager:
         self._paused: set[str] = set()
         self._last_text: dict[str, str] = {}  # contexto por sala
         self._room_langs: dict[str, str] = {}  # idioma fuente por sala
+        self._requested_langs: dict[str, set[str]] = {}  # idiomas destino pedidos por clientes
         self._word_counts: dict[str, int] = {}  # contador de palabras por sala
         self._key_moments: dict[str, list[KeyMoment]] = {}  # hitos por sala
         self._key_moment_callbacks: list = []  # callbacks para emitir key moments vía WS
@@ -61,6 +62,23 @@ class RoomManager:
         with self._lock:
             self._room_langs[room_id] = lang
             logger.info("Sala %s: idioma cambiado a %s", room_id, lang)
+
+    def request_room_lang(self, room_id: str, lang: str) -> None:
+        """Registra un idioma destino pedido por un cliente para una sala."""
+        if not lang or lang == "original":
+            return
+        with self._lock:
+            langs = self._requested_langs.setdefault(room_id, set())
+            if lang not in langs:
+                langs.add(lang)
+                logger.info("Sala %s: idioma destino pedido: %s (total: %s)",
+                            room_id, lang, sorted(langs))
+
+    def get_requested_langs(self, room_id: str) -> set[str]:
+        """Idiomas destino activos: los pedidos por clientes + TARGET_LANG default."""
+        langs = set(self._requested_langs.get(room_id, set()))
+        langs.add(self.translator.target_lang)
+        return langs
 
     def get_room_lang(self, room_id: str) -> str:
         return self._room_langs.get(room_id, "es")
@@ -206,14 +224,19 @@ class RoomManager:
                     # Guardar contexto para el próximo chunk
                     self._last_text[room_id] = original
 
-                    # Si Whisper detectó que el texto ya está en el idioma destino, no traducir
-                    target_lang = self.translator.target_lang
-                    if detected_lang and detected_lang == target_lang:
-                        translated = original
-                        t2 = time.perf_counter()
-                    else:
-                        translated = self.translator.translate(original)
-                        t2 = time.perf_counter()
+                    # Traducir a todos los idiomas pedidos por clientes
+                    target_langs = self.get_requested_langs(room_id)
+                    translations: dict[str, str] = {}
+                    translated = original
+                    for tl in target_langs:
+                        if detected_lang and detected_lang == tl:
+                            translations[tl] = original
+                        else:
+                            translations[tl] = self.translator.translate(original, target_lang=tl)
+                    # Compat: `translated` conserva el idioma default (TARGET_LANG)
+                    default_lang = self.translator.target_lang
+                    translated = translations.get(default_lang, original)
+                    t2 = time.perf_counter()
 
                     whisper_ms = (t1 - t0) * 1000
                     gemma_ms = (t2 - t1) * 1000
@@ -226,6 +249,7 @@ class RoomManager:
                         end_time=time.time() + CHUNK_DURATION,
                         whisper_latency_ms=whisper_ms,
                         gemma_latency_ms=gemma_ms,
+                        translations=translations,
                     )
 
                     self.store.add(entry)

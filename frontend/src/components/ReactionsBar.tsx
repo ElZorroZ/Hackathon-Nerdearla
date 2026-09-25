@@ -2,7 +2,14 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Smile } from "lucide-react";
 
-const REACTIONS = ["�", "�", "�", "�", "🧠", "👏"];
+const REACTIONS = [
+  "\u{1F680}", // 🚀 rocket
+  "\u{1F525}", // 🔥 fire
+  "\u{1F4BB}", // 💻 laptop
+  "\u{1F41B}", // 🐛 bug
+  "\u{1F9E0}", // 🧠 brain
+  "\u{1F44F}", // 👏 clap
+];
 
 const FLOAT_DURATION = 3000;
 

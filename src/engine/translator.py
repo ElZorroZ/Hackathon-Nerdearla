@@ -34,15 +34,16 @@ class GemmaTranslator:
         self.glossary = glossary
         logger.info("GemmaTranslator inicializado: model=%s host=%s", model, host)
 
-    def translate(self, text: str) -> str:
+    def translate(self, text: str, target_lang: Optional[str] = None) -> str:
         """Traduce texto al idioma objetivo usando Gemma con glosario inyectado."""
         if not text.strip():
             return ""
 
-        target = self.LANG_NAMES.get(self.target_lang, "English")
+        lang = target_lang or self.target_lang
+        target = self.LANG_NAMES.get(lang, "English")
 
         # Si el texto ya está en el idioma objetivo, no traducir
-        if self._is_already_target_lang(text):
+        if self._is_already_target_lang(text, lang):
             return text
 
         glossary_ctx = ""
@@ -78,9 +79,9 @@ class GemmaTranslator:
             logger.error("Error en Gemma: %s", e)
             return text
 
-    def _is_already_target_lang(self, text: str) -> bool:
+    def _is_already_target_lang(self, text: str, lang: Optional[str] = None) -> bool:
         """Heurística estricta: si el texto ya está en el idioma objetivo, saltar traducción."""
-        if self.target_lang == "es":
+        if (lang or self.target_lang) == "es":
             spanish_markers = [
                 " que ", " de ", " la ", " el ", " los ", " las ", " y ", " en ",
                 " un ", " una ", " por ", " con ", " para ", " no ", " sí ",

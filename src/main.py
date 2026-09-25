@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI):
     init_export_routes(subtitle_store, DEFAULT_ROOMS)
     init_glossary_routes(glossary)
     init_admin_routes(metrics)
-    init_ws_routes(ws_manager, DEFAULT_ROOMS)
+    init_ws_routes(ws_manager, DEFAULT_ROOMS, on_room_lang=manager.request_room_lang)
 
     app.include_router(rooms_router)
     app.include_router(export_router)
@@ -137,6 +137,7 @@ async def _result_broadcaster():
                     "room": result.room_id,
                     "original": result.original,
                     "translated": result.translated,
+                    "translations": result.translations,
                     "timestamp": result.start_time,
                     "index": result.index,
                     "whisper_ms": round(result.whisper_latency_ms, 1),

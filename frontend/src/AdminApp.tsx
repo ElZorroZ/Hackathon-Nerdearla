@@ -17,9 +17,7 @@ import {
 } from "@/components/motion/select";
 import { RefreshCwIcon, type RefreshCwIconHandle } from "@/components/ui/refresh-cw-icon";
 import { MenuIcon, type MenuIconHandle } from "@/components/ui/menu-icon";
-import { SummaryModal } from "./components/SummaryModal";
 import { AudioQualityWidget } from "./components/AudioQualityWidget";
-import { MessageSquareTextIcon, type MessageSquareTextIconHandle } from "@/components/ui/message-square-text-icon";
 
 type AdminView = "dashboard" | "salas" | "glosario";
 
@@ -34,8 +32,6 @@ export function AdminApp() {
   const [reconnecting, setReconnecting] = useState(false);
   const refreshIconRef = useRef<RefreshCwIconHandle>(null);
   const menuIconRef = useRef<MenuIconHandle>(null);
-  const [showSummary, setShowSummary] = useState(false);
-  const aiIconRef = useRef<MessageSquareTextIconHandle>(null);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomLang, setNewRoomLang] = useState("ES");
@@ -578,16 +574,6 @@ export function AdminApp() {
                   </h3>
                   <div className="flex items-center gap-3 mb-3">
                     <AudioQualityWidget room={selectedRoomMetrics} />
-                    <button
-                      onClick={() => setShowSummary(true)}
-                      disabled={!recordRoom}
-                      onMouseEnter={() => aiIconRef.current?.startAnimation()}
-                      onMouseLeave={() => aiIconRef.current?.stopAnimation()}
-                      className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-sm text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <MessageSquareTextIcon ref={aiIconRef} size={18} isAnimated={false} />
-                      Generar Resumen con IA
-                    </button>
                   </div>
                   <div className="max-w-sm">
                     <MetricCard
@@ -735,9 +721,6 @@ export function AdminApp() {
         </main>
       </div>
 
-      {showSummary && recordRoom && (
-        <SummaryModal room={recordRoom} onClose={() => setShowSummary(false)} />
-      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ export interface SubtitleEntry {
   room: string;
   original: string;
   translated: string;
+  translations?: Record<string, string>;
   timestamp: number;
   index: number;
   whisper_ms: number;
