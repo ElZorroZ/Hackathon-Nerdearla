@@ -29,3 +29,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Audio samples (descargados con yt-dlp, no van al repo)
+assets/samples/*.wav

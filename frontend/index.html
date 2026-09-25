@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveSubs - Subtítulos en vivo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        h1 { font-size: 1.5rem; color: #6c63ff; }
+        .room-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .room-btn {
+            padding: 0.5rem 1.5rem;
+            border: 2px solid #2a2a4a;
+            background: transparent;
+            color: #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .room-btn:hover { border-color: #6c63ff; }
+        .room-btn.active {
+            background: #6c63ff;
+            border-color: #6c63ff;
+            color: #fff;
+        }
+        .status {
+            font-size: 0.85rem;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+        }
+        .status-dot.live { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+        .status-dot.disconnected { background: #ef4444; }
+        .subtitles-container {
+            width: 100%;
+            max-width: 800px;
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+        .subtitle-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 1.2rem 1.5rem;
+            border-left: 4px solid #6c63ff;
+            animation: fadeIn 0.3s ease;
+        }
+        .subtitle-original {
+            font-size: 1.1rem;
+            color: #a0a0b0;
+            margin-bottom: 0.4rem;
+        }
+        .subtitle-translated {
+            font-size: 1.3rem;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+        .subtitle-time {
+            font-size: 0.75rem;
+            color: #555;
+            margin-top: 0.4rem;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #555;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>LiveSubs</h1>
+        <div class="room-selector" id="roomSelector"></div>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Conectando...</span>
+        </div>
+    </header>
+    <div class="subtitles-container" id="subtitles">
+        <div class="empty-state">Esperando subtítulos...</div>
+    </div>
+
+    <script>
+        let currentRoom = null;
+        let ws = null;
+        const rooms = [];
+
+        async function loadRooms() {
+            const res = await fetch('/api/rooms');
+            const data = await res.json();
+            rooms.push(...data.rooms);
+            renderRoomSelector();
+            if (rooms.length > 0) selectRoom(rooms[0]);
+        }
+
+        function renderRoomSelector() {
+            const container = document.getElementById('roomSelector');
+            container.innerHTML = '';
+            rooms.forEach(room => {
+                const btn = document.createElement('button');
+                btn.className = 'room-btn';
+                btn.textContent = room;
+                btn.onclick = () => selectRoom(room);
+                container.appendChild(btn);
+            });
+        }
+
+        function selectRoom(room) {
+            currentRoom = room;
+            document.querySelectorAll('.room-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === room);
+            });
+            connectWS(room);
+        }
+
+        function connectWS(room) {
+            if (ws) ws.close();
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${location.host}/ws/${room}`);
+
+            ws.onopen = () => {
+                document.getElementById('statusDot').className = 'status-dot live';
+                document.getElementById('statusText').textContent = room + ' ● EN VIVO';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                addSubtitle(data);
+            };
+
+            ws.onclose = () => {
+                document.getElementById('statusDot').className = 'status-dot disconnected';
+                document.getElementById('statusText').textContent = 'Desconectado';
+            };
+
+            ws.onerror = () => {
+                document.getElementById('statusDot').className = 'status-dot disconnected';
+                document.getElementById('statusText').textContent = 'Error de conexión';
+            };
+        }
+
+        function addSubtitle(data) {
+            const container = document.getElementById('subtitles');
+            const empty = container.querySelector('.empty-state');
+            if (empty) empty.remove();
+
+            const card = document.createElement('div');
+            card.className = 'subtitle-card';
+
+            const time = new Date(data.timestamp * 1000).toLocaleTimeString();
+
+            card.innerHTML = `
+                <div class="subtitle-original">${escapeHtml(data.original)}</div>
+                <div class="subtitle-translated">${escapeHtml(data.translated)}</div>
+                <div class="subtitle-time">${time}</div>
+            `;
+
+            container.appendChild(card);
+            container.scrollTop = container.scrollHeight;
+
+            // Keep only last 50 subtitles
+            while (container.children.length > 50) {
+                container.removeChild(container.firstChild);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        loadRooms();
+    </script>
+</body>
+</html>
