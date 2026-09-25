@@ -1,11 +1,23 @@
 """
-Backend FastAPI con WebSockets para subtítulos en vivo.
+Backend FastAPI - LiveSubs
 
-Endpoints:
-  GET  /                  - Frontend web
-  GET  /api/rooms         - Lista de salas disponibles
-  POST /api/audio/{room}  - Subir chunk de audio (WAV 16kHz mono)
-  WS   /ws/{room}         - WebSocket para recibir subtítulos en tiempo real
+Rutas:
+  GET  /                              - Frontend (cliente)
+  GET  /admin                          - Frontend (admin dashboard)
+  GET  /api/rooms                      - Lista de salas
+  POST /api/audio/{room_id}            - Subir chunk de audio
+  POST /api/rooms/{room_id}/pause      - Pausar sala
+  POST /api/rooms/{room_id}/resume     - Reanudar sala
+  POST /api/rooms/{room_id}/clear      - Limpiar buffer
+  GET  /api/rooms/{room_id}/export     - Exportar SRT/VTT/TXT
+  GET  /api/rooms/{room_id}/subtitles  - Historial de subtítulos
+  GET  /api/admin/glossary             - Obtener glosario
+  POST /api/admin/glossary             - Agregar término
+  PUT  /api/admin/glossary             - Actualizar término
+  DELETE /api/admin/glossary           - Eliminar término
+  GET  /api/admin/metrics              - Métricas del sistema
+  WS   /ws/{room_id}                   - Subtítulos en vivo
+  WS   /ws/admin                       - Dashboard de admin en vivo
 
 Uso:
   uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
@@ -14,16 +26,26 @@ Uso:
 import asyncio
 import json
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Set
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import os
 
-from src.engine import WhisperEngine, GemmaTranslator, RoomManager
+from src.config import DEFAULT_ROOMS, FRONTEND_DIR
+from src.engine.whisper_engine import WhisperEngine
+from src.engine.translator import GemmaTranslator
+from src.engine.room_manager import RoomManager
+from src.services.subtitle_store import SubtitleStore
+from src.services.glossary_manager import GlossaryManager
+from src.services.metrics_collector import MetricsCollector
+from src.api.routes_rooms import router as rooms_router, init_room_routes
+from src.api.routes_export import router as export_router, init_export_routes
+from src.api.routes_glossary import router as glossary_router, init_glossary_routes
+from src.api.routes_admin import router as admin_router, init_admin_routes
+from src.api.websockets import router as ws_router, WSConnectionManager, init_ws_routes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,36 +53,54 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-ROOMS = ["sala-1", "sala-2"]
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-
-# ---------------------------------------------------------------------------
-# Globals (initialized on startup)
-# ---------------------------------------------------------------------------
-
+# Globals
 manager: RoomManager = None
-ws_connections: Dict[str, Set[WebSocket]] = {}
+ws_manager: WSConnectionManager = None
+metrics: MetricsCollector = None
+subtitle_store: SubtitleStore = None
+glossary: GlossaryManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global manager
-    logger.info("Inicializando motor Whisper + Gemma...")
-    whisper_engine = WhisperEngine()
-    translator = GemmaTranslator(target_lang="es")
-    manager = RoomManager(whisper_engine, translator)
-    for room_id in ROOMS:
-        manager.add_room(room_id)
-        ws_connections[room_id] = set()
-    manager.start()
-    logger.info("Motor listo. Salas: %s", ROOMS)
+    global manager, ws_manager, metrics, subtitle_store, glossary
 
-    # Background task: poll results and push to WebSocket clients
+    logger.info("Inicializando motor Whisper + Gemma...")
+
+    subtitle_store = SubtitleStore(max_entries=500)
+    metrics = MetricsCollector()
+    glossary = GlossaryManager()
+
+    whisper_engine = WhisperEngine()
+    translator = GemmaTranslator(glossary=glossary)
+    manager = RoomManager(whisper_engine, translator, subtitle_store, metrics)
+
+    ws_manager = WSConnectionManager()
+
+    for room_id in DEFAULT_ROOMS:
+        manager.add_room(room_id)
+        ws_manager.register_room(room_id)
+        metrics.register_room(room_id)
+
+    manager.start()
+    logger.info("Motor listo. Salas: %s", DEFAULT_ROOMS)
+
+    # Inicializar routers con dependencias (después de que los globals estén listos)
+    init_room_routes(manager, DEFAULT_ROOMS)
+    init_export_routes(subtitle_store, DEFAULT_ROOMS)
+    init_glossary_routes(glossary)
+    init_admin_routes(metrics)
+    init_ws_routes(ws_manager, DEFAULT_ROOMS)
+
+    app.include_router(rooms_router)
+    app.include_router(export_router)
+    app.include_router(glossary_router)
+    app.include_router(admin_router)
+    app.include_router(ws_router)
+
+    # Background tasks
     asyncio.create_task(_result_broadcaster())
+    asyncio.create_task(_admin_broadcaster())
 
     yield
 
@@ -68,75 +108,58 @@ async def lifespan(app: FastAPI):
     logger.info("Motor detenido.")
 
 
-# ---------------------------------------------------------------------------
-# FastAPI app
-# ---------------------------------------------------------------------------
-
 app = FastAPI(title="LiveSubs - Subtítulos en vivo", lifespan=lifespan)
 
 
-@app.get("/api/rooms")
-async def get_rooms():
-    return {"rooms": ROOMS}
-
-
-@app.post("/api/audio/{room_id}")
-async def receive_audio(room_id: str, file: UploadFile = File(...)):
-    if room_id not in ROOMS:
-        return JSONResponse(
-            status_code=404,
-            content={"error": f"Sala '{room_id}' no existe. Disponibles: {ROOMS}"},
-        )
-    audio_bytes = await file.read()
-    manager.submit_audio(room_id, audio_bytes)
-    return {"status": "ok", "room": room_id, "bytes": len(audio_bytes)}
-
-
-@app.websocket("/ws/{room_id}")
-async def websocket_endpoint(ws: WebSocket, room_id: str):
-    if room_id not in ROOMS:
-        await ws.close(code=4004, reason=f"Sala '{room_id}' no existe")
-        return
-
-    await ws.accept()
-    ws_connections[room_id].add(ws)
-    logger.info("Cliente conectado a %s (total: %d)", room_id, len(ws_connections[room_id]))
-
-    try:
-        while True:
-            await ws.receive_text()  # keep alive; ignoramos mensajes del cliente
-    except WebSocketDisconnect:
-        pass
-    finally:
-        ws_connections[room_id].discard(ws)
-        logger.info("Cliente desconectado de %s (total: %d)", room_id, len(ws_connections[room_id]))
-
+# ---------------------------------------------------------------------------
+# Broadcasters
+# ---------------------------------------------------------------------------
 
 async def _result_broadcaster():
     """Poll results from RoomManager and push to WebSocket clients."""
     while True:
-        for room_id in ROOMS:
+        for room_id in DEFAULT_ROOMS:
             result = manager.get_result(room_id, timeout=0.01)
-            if result and room_id in ws_connections:
-                payload = json.dumps({
+            if result:
+                payload = {
                     "room": result.room_id,
                     "original": result.original,
                     "translated": result.translated,
-                    "timestamp": result.timestamp,
-                }, ensure_ascii=False)
-                dead = set()
-                for ws in ws_connections[room_id]:
-                    try:
-                        await ws.send_text(payload)
-                    except Exception:
-                        dead.add(ws)
-                ws_connections[room_id] -= dead
+                    "timestamp": result.start_time,
+                    "index": result.index,
+                    "whisper_ms": round(result.whisper_latency_ms, 1),
+                    "gemma_ms": round(result.gemma_latency_ms, 1),
+                }
+                await ws_manager.broadcast_to_room(room_id, payload)
         await asyncio.sleep(0.05)
 
 
+async def _admin_broadcaster():
+    """Push métricas a admins via WebSocket cada 2s."""
+    while True:
+        await asyncio.sleep(2.0)
+        for room_id in DEFAULT_ROOMS:
+            metrics.set_listeners(room_id, ws_manager.listener_count(room_id))
+        payload = {
+            "type": "metrics",
+            "rooms": metrics.get_all_metrics(),
+            "system": metrics.get_system_metrics(),
+        }
+        await ws_manager.broadcast_to_admins(payload)
+
+
 # ---------------------------------------------------------------------------
-# Frontend (serves from frontend/ directory if exists, else inline HTML)
+# Frontend
 # ---------------------------------------------------------------------------
+
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin():
+    admin_path = os.path.join(FRONTEND_DIR, "admin.html")
+    if os.path.exists(admin_path):
+        with open(admin_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Admin no encontrado. Crear frontend/admin.html</h1>")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
