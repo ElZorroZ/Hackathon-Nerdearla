@@ -1,0 +1,46 @@
+export interface SubtitleEntry {
+  room: string;
+  original: string;
+  translated: string;
+  timestamp: number;
+  index: number;
+  whisper_ms: number;
+  gemma_ms: number;
+}
+
+export interface RoomMetrics {
+  room_id: string;
+  status: "active" | "paused" | "error";
+  listeners: number;
+  total_subtitles: number;
+  avg_whisper_ms: number;
+  avg_gemma_ms: number;
+  last_whisper_ms: number;
+  last_gemma_ms: number;
+  last_error: string | null;
+}
+
+export interface SystemMetrics {
+  uptime_seconds: number;
+  total_errors: number;
+  total_rooms: number;
+}
+
+export interface MetricsPayload {
+  type: "metrics";
+  rooms: RoomMetrics[];
+  system: SystemMetrics;
+}
+
+export interface RoomsResponse {
+  rooms: string[];
+}
+
+export interface GlossaryResponse {
+  terms: Record<string, string>;
+}
+
+export interface GlossaryTerm {
+  original: string;
+  translation: string;
+}

@@ -149,26 +149,29 @@ async def _admin_broadcaster():
 
 
 # ---------------------------------------------------------------------------
-# Frontend
+# Frontend (sirve build de Vite desde frontend/dist)
 # ---------------------------------------------------------------------------
+
+DIST_DIR = os.path.join(FRONTEND_DIR, "dist")
+
 
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_admin():
-    admin_path = os.path.join(FRONTEND_DIR, "admin.html")
-    if os.path.exists(admin_path):
-        with open(admin_path, "r", encoding="utf-8") as f:
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<h1>Admin no encontrado. Crear frontend/admin.html</h1>")
+    return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    index_path = os.path.join(DIST_DIR, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
-    return HTMLResponse("<h1>Frontend no encontrado. Crear frontend/index.html</h1>")
+    return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
 
 
-if os.path.isdir(FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+if os.path.isdir(DIST_DIR):
+    app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
