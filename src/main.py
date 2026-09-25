@@ -164,6 +164,15 @@ async def serve_admin():
     return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
 
 
+@app.get("/overlay", response_class=HTMLResponse)
+async def serve_overlay():
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
     index_path = os.path.join(DIST_DIR, "index.html")
