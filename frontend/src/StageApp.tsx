@@ -96,23 +96,54 @@ export function StageApp() {
         {connected ? "EN VIVO" : reconnecting ? "RECONECTANDO..." : "DESCONECTADO"}
       </div>
 
-      {/* QR Code for mobile */}
+      {/* QR Code for mobile — big & centered when idle, small corner when subtitles play */}
       <div
-        style={{
-          position: "absolute",
-          top: 20,
-          right: 20,
-          background: "#ffffff",
-          padding: 12,
-          borderRadius: 12,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 4,
-        }}
+        style={
+          lines.length === 0
+            ? {
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "50vmin",
+                height: "50vmin",
+                background: "#ffffff",
+                padding: 24,
+                borderRadius: 24,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 12,
+                boxShadow: "0 0 100px rgba(255,255,255,0.25)",
+              }
+            : {
+                position: "absolute",
+                top: 20,
+                right: 20,
+                background: "#ffffff",
+                padding: 12,
+                borderRadius: 12,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 4,
+              }
+        }
       >
-        <QRCodeSVG value={mobileUrl} size={120} level="M" />
-        <span style={{ fontSize: "0.7rem", color: "#333", fontWeight: 600 }}>
+        <QRCodeSVG
+          value={mobileUrl}
+          level="M"
+          style={{ width: "100%", height: "auto", flex: 1, minHeight: 0 }}
+        />
+        <span
+          style={{
+            fontSize: lines.length === 0 ? "1.5rem" : "0.7rem",
+            color: "#333",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+        >
           Escaneá para leer
         </span>
       </div>
