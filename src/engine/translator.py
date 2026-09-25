@@ -69,8 +69,8 @@ class GemmaTranslator:
                 prompt=prompt,
                 options={
                     "temperature": 0.2,
-                    "num_predict": 128,
-                    "stop": ["\n\n", "Text:"],
+                    "num_predict": 64,
+                    "stop": ["\n\n", "Text:", "Translation:"],
                 },
             )
             return response.get("response", "").strip()

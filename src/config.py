@@ -13,9 +13,9 @@ GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "gemma2:2b")
 TARGET_LANG = os.environ.get("TARGET_LANG", "es")
 
 # Audio
-CHUNK_DURATION = float(os.environ.get("CHUNK_DURATION", "3.0"))
+CHUNK_DURATION = float(os.environ.get("CHUNK_DURATION", "2.0"))
 SAMPLE_RATE = int(os.environ.get("SAMPLE_RATE", "16000"))
-CHUNK_OVERLAP = float(os.environ.get("CHUNK_OVERLAP", "0.5"))  # solapamiento entre chunks en segundos
+CHUNK_OVERLAP = float(os.environ.get("CHUNK_OVERLAP", "0.0"))  # solapamiento entre chunks en segundos
 
 # Salas
 DEFAULT_ROOMS = ["sala-1", "sala-2"]

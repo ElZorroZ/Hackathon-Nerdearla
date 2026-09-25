@@ -57,6 +57,8 @@ class WhisperEngine:
             logprob_threshold=-1.0,
             compression_ratio_threshold=2.4,
             initial_prompt="",
+            beam_size=1,
+            best_of=1,
         )
         text = result.get("text", "").strip()
 

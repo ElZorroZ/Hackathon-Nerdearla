@@ -26,9 +26,9 @@ SERVER = "http://localhost:8000"
 WS_URL = "ws://localhost:8000"
 ROOMS = ["sala-1", "sala-2"]
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "samples")
-CHUNK_SECONDS = 3.0
+CHUNK_SECONDS = 2.0
 SAMPLE_RATE = 16000
-CHUNK_OVERLAP = 0.5  # solapamiento entre chunks para no cortar palabras
+CHUNK_OVERLAP = 0.0  # sin solapamiento para no duplicar trabajo
 
 
 def generate_silence(duration: float = 3.0, sample_rate: int = 16000) -> bytes:
@@ -172,7 +172,7 @@ async def run_test():
     # Streaming de audio en paralelo (una tarea por sala)
     streamers = []
     for room in ROOMS:
-        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=CHUNK_SECONDS - CHUNK_OVERLAP)))
+        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=CHUNK_SECONDS)))
 
     await asyncio.gather(*streamers)
     logger.info("Streaming completado. Esperando subtítulos...")

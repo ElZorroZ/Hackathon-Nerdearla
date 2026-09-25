@@ -53,7 +53,18 @@ class RoomManager:
                     AudioChunk(room_id=room_id, audio_bytes=audio_bytes)
                 )
             except queue.Full:
-                logger.warning("Cola llena para sala %s, descartando chunk", room_id)
+                # Descartar chunk más viejo y encolar el nuevo
+                try:
+                    self.audio_queues[room_id].get_nowait()
+                except queue.Empty:
+                    pass
+                try:
+                    self.audio_queues[room_id].put_nowait(
+                        AudioChunk(room_id=room_id, audio_bytes=audio_bytes)
+                    )
+                except queue.Full:
+                    pass
+                logger.warning("Cola llena para sala %s, descartando chunk viejo", room_id)
 
     def get_result(self, room_id: str, timeout: float = 0.1) -> Optional[SubtitleEntry]:
         if room_id in self.results_queues:
