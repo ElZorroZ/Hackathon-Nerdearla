@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Fondo Negro -->
+  <rect width="512" height="512" rx="112" fill="#0F0F0F" />
+
   <g transform="translate(100, 90)">
     <!-- Orejas (Azul) -->
     <polygon points="30,50 110,30 80,140" fill="#0055A5" />
