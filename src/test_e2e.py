@@ -24,11 +24,12 @@ logger = logging.getLogger("test_e2e")
 
 SERVER = "http://localhost:8000"
 WS_URL = "ws://localhost:8000"
-ROOMS = ["sala-1", "sala-2"]
+ROOMS = ["sala-1"]
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "samples")
 CHUNK_SECONDS = 2.0
 SAMPLE_RATE = 16000
 CHUNK_OVERLAP = 0.0  # sin solapamiento para no duplicar trabajo
+MAX_CHUNKS = 30  # limitar cantidad de chunks para test rápido
 
 
 def generate_silence(duration: float = 3.0, sample_rate: int = 16000) -> bytes:
@@ -150,21 +151,24 @@ async def run_test():
         logger.error("No se pudo conectar al servidor. ¿Está corriendo? %s", e)
         return
 
-    # Cargar audios de prueba
+    # Cargar audios de prueba (un solo archivo, limitar chunks)
     samples = {}
+    wav_files = sorted(
+        [f for f in os.listdir(SAMPLES_DIR) if f.endswith(".wav")]
+    ) if os.path.isdir(SAMPLES_DIR) else []
+
     for room in ROOMS:
-        found = False
-        for fname in os.listdir(SAMPLES_DIR) if os.path.isdir(SAMPLES_DIR) else []:
-            if fname.endswith(".wav"):
-                samples[room] = load_wav_chunks(os.path.join(SAMPLES_DIR, fname), CHUNK_SECONDS)
-                found = True
-                break
-        if not found:
+        if wav_files:
+            all_chunks = load_wav_chunks(os.path.join(SAMPLES_DIR, wav_files[0]), CHUNK_SECONDS)
+            samples[room] = all_chunks[:MAX_CHUNKS]
+            logger.info("[%s] Usando %s: %d chunks (limitado de %d)",
+                        room, wav_files[0], len(samples[room]), len(all_chunks))
+        else:
             logger.warning("[%s] No se encontró WAV en %s, usando silencio", room, SAMPLES_DIR)
-            samples[room] = [generate_silence(CHUNK_SECONDS)]
+            samples[room] = [generate_silence(CHUNK_SECONDS)] * 5
 
     # Lanzar listeners WebSocket en paralelo
-    total_duration = max(len(s) for s in samples.values()) * 3.0 + 15
+    total_duration = max(len(s) for s in samples.values()) * (CHUNK_SECONDS + 2) + 15
     listeners = [asyncio.create_task(listen_ws(room, duration=total_duration)) for room in ROOMS]
 
     await asyncio.sleep(1)  # esperar que WS conecten

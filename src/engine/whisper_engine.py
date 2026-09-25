@@ -43,7 +43,7 @@ class WhisperEngine:
 
         # Filtrar chunks de silencio (RMS muy bajo)
         rms = np.sqrt(np.mean(audio_np ** 2))
-        if rms < 0.01:
+        if rms < 0.015:
             logger.debug("Chunk descartado por silencio (RMS=%.4f)", rms)
             return ""
 
@@ -71,6 +71,16 @@ class WhisperEngine:
             if unique_ratio < 0.3 and len(words) > 4:
                 logger.debug("Chunk descartado por repetitivo: %s", text[:60])
                 return ""
+
+        # Filtrar transcripciones de ruido/silencio
+        GARBAGE_PATTERNS = {"music", "and", "!!!!", "...", "thank you", "[music]"}
+        if text.lower().strip() in GARBAGE_PATTERNS:
+            logger.debug("Chunk descartado por garbage: %s", text[:60])
+            return ""
+        if len(words) <= 1 and len(text) <= 4:
+            logger.debug("Chunk descartado por muy corto: %s", text[:60])
+            return ""
+
         return text
 
     @staticmethod
