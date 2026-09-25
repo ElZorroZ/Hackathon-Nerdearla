@@ -7,9 +7,10 @@ import { PauseIcon, type PauseIconHandle } from "@/components/ui/pause-icon";
 import { PlayIcon, type PlayIconHandle } from "@/components/ui/play-icon";
 import { WifiSyncIcon, type WifiSyncIconHandle } from "@/components/ui/wifi-sync-icon";
 import { SummaryModal } from "./components/SummaryModal";
-import { KeyMomentsPanel } from "./components/KeyMomentsPanel";
+import { KeyMomentsModal } from "./components/KeyMomentsModal";
 import { ReactionsBar } from "./components/ReactionsBar";
 import { MessageSquareTextIcon, type MessageSquareTextIconHandle } from "@/components/ui/message-square-text-icon";
+import { QuoteIcon, type QuoteIconHandle } from "@/components/ui/quote-icon";
 import {
   Select,
   SelectContent,
@@ -37,7 +38,9 @@ export function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [subtitles, setSubtitles] = useState<SubtitleEntry[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const [showKeyMoments, setShowKeyMoments] = useState(false);
   const aiIconRef = useRef<MessageSquareTextIconHandle>(null);
+  const quoteIconRef = useRef<QuoteIconHandle>(null);
   const subtitleListRef = useRef<HTMLDivElement>(null);
 
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -280,6 +283,18 @@ export function App() {
             )}
           </button>
 
+          {/* Key Moments button */}
+          <button
+            onClick={() => setShowKeyMoments(true)}
+            disabled={!selectedRoom}
+            onMouseEnter={() => quoteIconRef.current?.startAnimation()}
+            onMouseLeave={() => quoteIconRef.current?.stopAnimation()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all shrink-0 bg-secondary border-border text-foreground hover:text-primary hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Línea de Tiempo"
+          >
+            <QuoteIcon ref={quoteIconRef} size={18} isAnimated={false} />
+          </button>
+
           {/* AI Summary button */}
           <button
             onClick={() => setShowSummary(true)}
@@ -292,21 +307,6 @@ export function App() {
             <MessageSquareTextIcon ref={aiIconRef} size={18} isAnimated={false} />
           </button>
         </div>
-
-        {/* Key Moments Timeline */}
-        {selectedRoom && (
-          <KeyMomentsPanel
-            room={selectedRoom}
-            onJumpToSubtitle={(index) => {
-              const el = document.getElementById(`sub-${index}`);
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                el.classList.add("ring-2", "ring-primary", "transition-all");
-                setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 2000);
-              }
-            }}
-          />
-        )}
 
         {/* Subtitle Display */}
         <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col min-h-0">
@@ -332,6 +332,21 @@ export function App() {
 
       {showSummary && selectedRoom && (
         <SummaryModal room={selectedRoom} onClose={() => setShowSummary(false)} />
+      )}
+
+      {showKeyMoments && selectedRoom && (
+        <KeyMomentsModal
+          room={selectedRoom}
+          onClose={() => setShowKeyMoments(false)}
+          onJumpToSubtitle={(index) => {
+            const el = document.getElementById(`sub-${index}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.classList.add("ring-2", "ring-primary", "transition-all");
+              setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 2000);
+            }
+          }}
+        />
       )}
 
       {selectedRoom && (

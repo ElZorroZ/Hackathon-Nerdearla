@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SubtitleEntry } from "../types";
 import { RadioIcon, type RadioIconHandle } from "@/components/ui/radio-icon";
 import { WifiOffIcon, type WifiOffIconHandle } from "@/components/ui/wifi-off-icon";
@@ -40,12 +40,27 @@ export function SubtitleDisplay({
   const containerRef = useRef<HTMLDivElement>(null);
   const radioRef = useRef<RadioIconHandle>(null);
   const wifiOffRef = useRef<WifiOffIconHandle>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   useEffect(() => {
     if (autoScroll && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [subtitles, autoScroll]);
+
+  const handleScroll = () => {
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+    setIsAtBottom(atBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
+      setIsAtBottom(true);
+    }
+  };
 
   useEffect(() => {
     radioRef.current?.startAnimation();
@@ -103,10 +118,12 @@ export function SubtitleDisplay({
   const langBadge = LANG_BADGE[lang];
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 space-y-2 sm:space-y-3 scroll-smooth"
-    >
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 space-y-2 sm:space-y-3 scroll-smooth"
+      >
       {subtitles.map((s, i) => {
         const isLatest = i === subtitles.length - 1;
         return (
@@ -143,6 +160,17 @@ export function SubtitleDisplay({
           </div>
         );
       })}
+      </div>
+
+      {!isAtBottom && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-full shadow-lg shadow-black/40 hover:bg-primary/90 transition-colors"
+        >
+          Volver a la actualidad
+          <span className="text-[10px]">↓</span>
+        </button>
+      )}
     </div>
   );
 }
