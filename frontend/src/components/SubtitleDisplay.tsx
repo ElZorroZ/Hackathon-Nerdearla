@@ -128,7 +128,7 @@ export function SubtitleDisplay({
         const isLatest = i === subtitles.length - 1;
         return (
           <div
-            key={s.index || i}
+            key={`${s.index}-${s.timestamp}`}
             id={`sub-${s.index}`}
             className={`subtitle-enter rounded-lg px-3 py-2 transition-all ${
               isLatest

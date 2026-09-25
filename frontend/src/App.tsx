@@ -62,7 +62,10 @@ export function App() {
       return;
     }
     setSubtitles((prev: SubtitleEntry[]) => {
-      const next = [...prev, data].slice(-200);
+      // Dedupe by index: cached (localStorage) entries can overlap with live feed,
+      // and index counters reset on backend restart — replace stale same-index entry
+      const filtered = data.index ? prev.filter((s) => s.index !== data.index) : prev;
+      const next = [...filtered, data].slice(-200);
       // Persist to localStorage for offline resilience
       try {
         localStorage.setItem(`subs_${data.room || selectedRoom}`, JSON.stringify(next));
