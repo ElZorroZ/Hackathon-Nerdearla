@@ -1,20 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { EmojiReaction } from "@/components/ui/emoji-reaction";
 import { AnimatePresence, motion } from "motion/react";
-import type { ReactionEvent } from "../types";
+import { Smile } from "lucide-react";
 
-const EMOJI_MAP: Record<string, string> = {
-  "smiling-face-with-hearts": "🥰",
-  "star-struck": "🤩",
-  "confused-face": "😕",
-  "pleading-face": "🥺",
-  "grinning-face-with-smiling-eyes": "😄",
-  "clapping-hands": "👏",
-  "thumbs-up": "👍",
-  "fire": "🔥",
-  "party-popper": "🎉",
-  "heart": "❤️",
-};
+const REACTIONS = ["�", "�", "�", "�", "🧠", "👏"];
 
 const FLOAT_DURATION = 3000;
 
@@ -27,12 +15,13 @@ interface FloatingEmoji {
 interface ReactionsBarProps {
   room: string;
   ws: WebSocket | null;
-  onReactionReceived: (emoji: string) => void;
 }
 
-export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps) {
+export function ReactionsBar({ room, ws }: ReactionsBarProps) {
   const [floatingEmojis, setFloatingEmojis] = useState<FloatingEmoji[]>([]);
+  const [open, setOpen] = useState(false);
   const seedRef = useRef(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   // Listen for incoming reactions on the WebSocket
   useEffect(() => {
@@ -42,17 +31,12 @@ export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps
       try {
         const data = JSON.parse(event.data);
         if (data.type === "reaction" && data.emoji) {
-          const emojiChar = EMOJI_MAP[data.emoji] || "👍";
           const id = ++seedRef.current;
-          const x = Math.random() * 60 + 20; // 20% to 80% of width
-          setFloatingEmojis((prev) => [...prev, { id, emoji: emojiChar, x }]);
-
-          // Remove after animation
+          const x = Math.random() * 60 + 20;
+          setFloatingEmojis((prev) => [...prev, { id, emoji: data.emoji, x }]);
           setTimeout(() => {
             setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
           }, FLOAT_DURATION);
-
-          onReactionReceived(emojiChar);
         }
       } catch {
         // ignore non-JSON
@@ -61,12 +45,24 @@ export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps
 
     ws.addEventListener("message", handleMessage);
     return () => ws.removeEventListener("message", handleMessage);
-  }, [ws, onReactionReceived]);
+  }, [ws]);
 
-  const handleReact = useCallback(
-    (name: string) => {
+  // Close popover on outside click
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const sendReaction = useCallback(
+    (emoji: string) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "reaction", emoji: name }));
+      ws.send(JSON.stringify({ type: "reaction", emoji }));
     },
     [ws]
   );
@@ -101,14 +97,48 @@ export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps
         </AnimatePresence>
       </div>
 
-      {/* Reaction trigger button */}
-      <div className="fixed bottom-4 right-4 z-50 sm:bottom-8 sm:right-8">
-        <EmojiReaction
-          onReact={handleReact}
-          size="md"
-          align="right"
-          className="shadow-lg shadow-black/40"
-        />
+      {/* Reaction trigger + popover */}
+      <div
+        ref={wrapRef}
+        className="fixed bottom-4 right-4 z-50 sm:bottom-8 sm:right-8"
+      >
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.9 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-border bg-card/95 p-1.5 shadow-xl shadow-black/40 backdrop-blur-sm"
+            >
+              {REACTIONS.map((emoji) => (
+                <motion.button
+                  key={emoji}
+                  whileHover={{ scale: 1.25, y: -2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => sendReaction(emoji)}
+                  className="flex size-10 items-center justify-center rounded-xl text-2xl transition-colors hover:bg-secondary sm:size-11"
+                  aria-label={`Reaccionar con ${emoji}`}
+                >
+                  {emoji}
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          onClick={() => setOpen((v) => !v)}
+          className={`flex size-11 items-center justify-center rounded-full border shadow-lg shadow-black/40 transition-colors sm:size-12 ${
+            open
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-card text-foreground border-border hover:bg-secondary"
+          }`}
+          aria-label="Abrir reacciones"
+        >
+          <Smile className="size-5 sm:size-6" />
+        </motion.button>
       </div>
     </>
   );

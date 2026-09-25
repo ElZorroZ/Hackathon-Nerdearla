@@ -14,6 +14,9 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime"],
+  },
   server: {
     allowedHosts: true,
     proxy: {

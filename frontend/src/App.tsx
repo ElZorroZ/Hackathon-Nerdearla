@@ -222,7 +222,7 @@ export function App() {
           </div>
 
           {/* Language select with @beui/select */}
-          <div className="w-24 sm:w-44">
+          <div className="w-24 sm:w-32">
             <Select value={lang} onValueChange={setLang}>
               <SelectTrigger>
                 <SelectValue placeholder="Idioma" />
@@ -350,11 +350,7 @@ export function App() {
       )}
 
       {selectedRoom && (
-        <ReactionsBar
-          room={selectedRoom}
-          ws={ws.current}
-          onReactionReceived={() => {}}
-        />
+        <ReactionsBar room={selectedRoom} ws={ws.current} />
       )}
     </div>
   );
