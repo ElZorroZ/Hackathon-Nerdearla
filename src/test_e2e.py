@@ -28,6 +28,7 @@ ROOMS = ["sala-1", "sala-2"]
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "samples")
 CHUNK_SECONDS = 3.0
 SAMPLE_RATE = 16000
+CHUNK_OVERLAP = 0.5  # solapamiento entre chunks para no cortar palabras
 
 
 def generate_silence(duration: float = 3.0, sample_rate: int = 16000) -> bytes:
@@ -43,8 +44,8 @@ def generate_silence(duration: float = 3.0, sample_rate: int = 16000) -> bytes:
     return buf.getvalue()
 
 
-def load_wav_chunks(wav_path: str, chunk_seconds: float = CHUNK_SECONDS) -> list[bytes]:
-    """Lee un WAV y lo divide en chunks de N segundos."""
+def load_wav_chunks(wav_path: str, chunk_seconds: float = CHUNK_SECONDS, overlap: float = CHUNK_OVERLAP) -> list[bytes]:
+    """Lee un WAV y lo divide en chunks de N segundos con solapamiento."""
     chunks = []
     try:
         wf = wave.open(wav_path, "rb")
@@ -59,11 +60,16 @@ def load_wav_chunks(wav_path: str, chunk_seconds: float = CHUNK_SECONDS) -> list
             audio = audio[::n_channels]  # downmix to mono
 
         chunk_size = int(sr * chunk_seconds)
-        total_chunks = len(audio) // chunk_size
+        step = int(sr * (chunk_seconds - overlap))  # paso con solapamiento
+        total_chunks = max(1, (len(audio) - chunk_size) // step + 1)
         for i in range(total_chunks):
-            start = i * chunk_size
+            start = i * step
             end = start + chunk_size
+            if end > len(audio):
+                end = len(audio)
             chunk_data = audio[start:end]
+            if len(chunk_data) < sr * 0.5:  # skip chunks muy cortos
+                break
 
             buf = io.BytesIO()
             with wave.open(buf, "wb") as wf_out:
@@ -73,9 +79,9 @@ def load_wav_chunks(wav_path: str, chunk_seconds: float = CHUNK_SECONDS) -> list
                 wf_out.writeframes(chunk_data.tobytes())
             chunks.append(buf.getvalue())
 
-        logger.info("Cargado %s: %d chunks de %.1fs (%.1fs total)",
+        logger.info("Cargado %s: %d chunks de %.1fs (overlap=%.1fs, total=%.1fs)",
                     os.path.basename(wav_path), len(chunks), chunk_seconds,
-                    len(chunks) * chunk_seconds)
+                    overlap, len(chunks) * (chunk_seconds - overlap))
     except Exception as e:
         logger.error("Error cargando %s: %s", wav_path, e)
     return chunks
@@ -166,7 +172,7 @@ async def run_test():
     # Streaming de audio en paralelo (una tarea por sala)
     streamers = []
     for room in ROOMS:
-        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=3.0)))
+        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=CHUNK_SECONDS - CHUNK_OVERLAP)))
 
     await asyncio.gather(*streamers)
     logger.info("Streaming completado. Esperando subtítulos...")

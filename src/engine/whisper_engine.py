@@ -40,13 +40,36 @@ class WhisperEngine:
         audio_np = self._bytes_to_numpy(audio_bytes)
         if audio_np.size == 0:
             return ""
+
+        # Filtrar chunks de silencio (RMS muy bajo)
+        rms = np.sqrt(np.mean(audio_np ** 2))
+        if rms < 0.01:
+            logger.debug("Chunk descartado por silencio (RMS=%.4f)", rms)
+            return ""
+
         result = self.model.transcribe(
             audio_np,
             language=language,
             fp16=True,
             task="transcribe",
+            condition_on_previous_text=False,
+            no_speech_threshold=0.6,
+            logprob_threshold=-1.0,
+            compression_ratio_threshold=2.4,
+            initial_prompt="",
         )
-        return result.get("text", "").strip()
+        text = result.get("text", "").strip()
+
+        # Filtrar transcripciones basura (muy cortas o repetitivas)
+        if len(text) < 2:
+            return ""
+        words = text.split()
+        if len(words) > 0:
+            unique_ratio = len(set(words)) / len(words)
+            if unique_ratio < 0.3 and len(words) > 4:
+                logger.debug("Chunk descartado por repetitivo: %s", text[:60])
+                return ""
+        return text
 
     @staticmethod
     def _bytes_to_numpy(audio_bytes: bytes) -> np.ndarray:

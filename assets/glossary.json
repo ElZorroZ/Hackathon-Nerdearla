@@ -1,0 +1,17 @@
+{
+  "WebSocket": "WebSocket",
+  "API": "API",
+  "GPU": "GPU",
+  "CPU": "CPU",
+  "VRAM": "VRAM",
+  "machine learning": "aprendizaje automático",
+  "deep learning": "aprendizaje profundo",
+  "deploy": "desplegar",
+  "framework": "framework",
+  "open source": "código abierto",
+  "backend": "backend",
+  "frontend": "frontend",
+  "streaming": "streaming",
+  "latency": "latencia",
+  "throughput": "rendimiento"
+}
