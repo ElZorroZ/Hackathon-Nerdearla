@@ -15,7 +15,9 @@ type IconName =
   | "plus"
   | "back"
   | "users"
-  | "clock";
+  | "clock"
+  | "monitor"
+  | "sync";
 
 const paths: Record<IconName, JSX.Element> = {
   mic: (
@@ -103,6 +105,21 @@ const paths: Record<IconName, JSX.Element> = {
     <>
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </>
+  ),
+  sync: (
+    <>
+      <path d="M21 12a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 8" />
+      <polyline points="3 3 3 8 8 8" />
+      <path d="M3 12a9 9 0 0 0 9 9 9 9 0 0 0 6.36-2.64L21 16" />
+      <polyline points="21 21 21 16 16 16" />
     </>
   ),
 };

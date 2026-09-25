@@ -37,32 +37,56 @@ class RoomManager:
         self._lock = threading.Lock()
         self._paused: set[str] = set()
         self._last_text: dict[str, str] = {}  # contexto por sala
+        self._room_langs: dict[str, str] = {}  # idioma fuente por sala
 
-    def add_room(self, room_id: str) -> None:
+    def add_room(self, room_id: str, lang: str = "es") -> None:
         with self._lock:
             if room_id not in self.audio_queues:
                 self.audio_queues[room_id] = queue.Queue(maxsize=50)
                 self.results_queues[room_id] = queue.Queue(maxsize=100)
                 self.store.register_room(room_id)
                 self.metrics.register_room(room_id)
-                logger.info("Sala registrada: %s", room_id)
+                self._room_langs[room_id] = lang
+                logger.info("Sala registrada: %s (lang=%s)", room_id, lang)
+
+    # Zero-Lag: si la cola acumula más de MAX_QUEUE_LAG chunks, flush y tomar el más reciente
+    MAX_QUEUE_LAG = 3
+
+    def set_room_lang(self, room_id: str, lang: str) -> None:
+        with self._lock:
+            self._room_langs[room_id] = lang
+            logger.info("Sala %s: idioma cambiado a %s", room_id, lang)
+
+    def get_room_lang(self, room_id: str) -> str:
+        return self._room_langs.get(room_id, "es")
 
     def submit_audio(self, room_id: str, audio_bytes: bytes) -> None:
         if room_id in self.audio_queues and room_id not in self._paused:
-            try:
-                self.audio_queues[room_id].put_nowait(
-                    AudioChunk(room_id=room_id, audio_bytes=audio_bytes)
+            q = self.audio_queues[room_id]
+            # Zero-Lag policy: si hay >= MAX_QUEUE_LAG chunks pendientes, vaciar cola
+            pending = q.qsize()
+            if pending >= self.MAX_QUEUE_LAG:
+                flushed = 0
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                        flushed += 1
+                    except queue.Empty:
+                        break
+                logger.warning(
+                    "[Zero-Lag] Sala %s: flush de %d chunks viejos (latencia > %.1fs)",
+                    room_id, flushed, pending * CHUNK_DURATION,
                 )
+                self.metrics.set_status(room_id, "active")
+            try:
+                q.put_nowait(AudioChunk(room_id=room_id, audio_bytes=audio_bytes))
             except queue.Full:
-                # Descartar chunk más viejo y encolar el nuevo
                 try:
-                    self.audio_queues[room_id].get_nowait()
+                    q.get_nowait()
                 except queue.Empty:
                     pass
                 try:
-                    self.audio_queues[room_id].put_nowait(
-                        AudioChunk(room_id=room_id, audio_bytes=audio_bytes)
-                    )
+                    q.put_nowait(AudioChunk(room_id=room_id, audio_bytes=audio_bytes))
                 except queue.Full:
                     pass
                 logger.warning("Cola llena para sala %s, descartando chunk viejo", room_id)
@@ -133,7 +157,10 @@ class RoomManager:
 
                 try:
                     prev_text = self._last_text.get(room_id, "")
-                    original, detected_lang = self.whisper.transcribe(chunk.audio_bytes, initial_prompt=prev_text)
+                    room_lang = self._room_langs.get(room_id, "es")
+                    original, detected_lang = self.whisper.transcribe(
+                        chunk.audio_bytes, language=room_lang, initial_prompt=prev_text
+                    )
                     t1 = time.perf_counter()
 
                     if not original:

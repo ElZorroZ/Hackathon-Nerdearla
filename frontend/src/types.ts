@@ -6,6 +6,7 @@ export interface SubtitleEntry {
   index: number;
   whisper_ms: number;
   gemma_ms: number;
+  type?: string;
 }
 
 export interface RoomMetrics {
@@ -32,8 +33,14 @@ export interface MetricsPayload {
   system: SystemMetrics;
 }
 
+export interface RoomInfo {
+  id: string;
+  name: string;
+  lang: string;
+}
+
 export interface RoomsResponse {
-  rooms: string[];
+  rooms: RoomInfo[];
 }
 
 export interface GlossaryResponse {

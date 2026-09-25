@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
     ws_manager = WSConnectionManager()
 
     for room_id in DEFAULT_ROOMS:
-        manager.add_room(room_id)
+        manager.add_room(room_id, lang="es")
         ws_manager.register_room(room_id)
         metrics.register_room(room_id)
 
@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     logger.info("Motor listo. Salas: %s", DEFAULT_ROOMS)
 
     # Inicializar routers con dependencias (después de que los globals estén listos)
-    init_room_routes(manager, DEFAULT_ROOMS)
+    init_room_routes(manager, DEFAULT_ROOMS, ws_manager, metrics)
     init_export_routes(subtitle_store, DEFAULT_ROOMS)
     init_glossary_routes(glossary)
     init_admin_routes(metrics)
@@ -166,6 +166,24 @@ async def serve_admin():
 
 @app.get("/overlay", response_class=HTMLResponse)
 async def serve_overlay():
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
+
+
+@app.get("/stage", response_class=HTMLResponse)
+async def serve_stage():
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Frontend no compilado. Ejecutar: cd frontend && npm install && npm run build</h1>")
+
+
+@app.get("/mobile", response_class=HTMLResponse)
+async def serve_mobile():
     index_path = os.path.join(DIST_DIR, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:

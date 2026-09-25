@@ -54,13 +54,35 @@ class WSConnectionManager:
 def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str]):
     """Registra los endpoints WebSocket."""
 
+    # IMPORTANT: /ws/admin must be registered BEFORE /ws/{room_id}
+    # otherwise FastAPI matches "admin" as a room_id and rejects with 403.
+
+    @router.websocket("/ws/admin")
+    async def admin_ws(ws: WebSocket):
+        offered = ws.headers.get("sec-websocket-protocol", "")
+        subproto = "ngrok-skip-browser-warning" if "ngrok-skip-browser-warning" in offered else None
+        await ws.accept(subprotocol=subproto)
+        ws_manager.admin_connections.add(ws)
+
+        try:
+            while True:
+                await ws.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            ws_manager.admin_connections.discard(ws)
+            logger.info("Admin desconectado (total: %d)", len(ws_manager.admin_connections))
+
     @router.websocket("/ws/{room_id}")
     async def room_ws(ws: WebSocket, room_id: str):
         if room_id not in rooms:
             await ws.close(code=4004, reason=f"Sala '{room_id}' no existe")
             return
 
-        await ws.accept()
+        # Aceptar con o sin subprotocolo
+        offered = ws.headers.get("sec-websocket-protocol", "")
+        subproto = "ngrok-skip-browser-warning" if "ngrok-skip-browser-warning" in offered else None
+        await ws.accept(subprotocol=subproto)
         ws_manager.register_room(room_id)
         ws_manager.room_connections[room_id].add(ws)
         logger.info("Cliente conectado a %s (total: %d)", room_id, ws_manager.listener_count(room_id))
@@ -73,18 +95,3 @@ def init_ws_routes(ws_manager: WSConnectionManager, rooms: list[str]):
         finally:
             ws_manager.room_connections[room_id].discard(ws)
             logger.info("Cliente desconectado de %s (total: %d)", room_id, ws_manager.listener_count(room_id))
-
-    @router.websocket("/ws/admin")
-    async def admin_ws(ws: WebSocket):
-        await ws.accept()
-        ws_manager.admin_connections.add(ws)
-        logger.info("Admin conectado (total: %d)", len(ws_manager.admin_connections))
-
-        try:
-            while True:
-                await ws.receive_text()
-        except WebSocketDisconnect:
-            pass
-        finally:
-            ws_manager.admin_connections.discard(ws)
-            logger.info("Admin desconectado (total: %d)", len(ws_manager.admin_connections))

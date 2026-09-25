@@ -14,18 +14,18 @@ export function ExportButton({ room }: { room: string }) {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 bg-[#1a1a2e] hover:bg-[#252540] px-3 py-2 rounded-lg text-gray-300 transition-all"
+        className="flex items-center gap-2 bg-secondary hover:bg-accent border border-border px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground transition-all text-sm"
       >
-        <Icon name="download" className="w-4 h-4" />
-        <span className="text-sm">Exportar</span>
+        <Icon name="download" className="w-3.5 h-3.5" />
+        <span className="hidden md:inline">Exportar</span>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 bg-[#1a1a2e] border border-gray-700 rounded-lg shadow-xl z-50 min-w-[120px]">
+        <div className="absolute right-0 mt-2 bg-popover border border-border rounded-lg shadow-xl z-50 min-w-[120px]">
           {["srt", "vtt", "txt"].map((fmt) => (
             <button
               key={fmt}
               onClick={() => handleDownload(fmt)}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-indigo-600/20 uppercase first:rounded-t-lg last:rounded-b-lg"
+              className="block w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground uppercase first:rounded-t-lg last:rounded-b-lg"
             >
               .{fmt}
             </button>

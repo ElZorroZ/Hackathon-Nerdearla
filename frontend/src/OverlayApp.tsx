@@ -55,7 +55,7 @@ export function OverlayApp() {
     function connect() {
       const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${proto}//${window.location.host}/ws/${room}`;
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, ["ngrok-skip-browser-warning"]);
       wsRef.current = ws;
 
       ws.onopen = () => {

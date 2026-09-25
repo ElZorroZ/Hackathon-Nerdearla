@@ -4,7 +4,9 @@ import ctypes
 import io
 import logging
 import os
+import subprocess
 import sys
+import tempfile
 import threading
 import wave
 from typing import Optional
@@ -78,14 +80,14 @@ class WhisperEngine:
         kwargs = dict(
             task="transcribe",
             condition_on_previous_text=False,
-            no_speech_threshold=0.5,
-            log_prob_threshold=-0.8,
+            no_speech_threshold=0.6,
+            log_prob_threshold=-1.0,
             compression_ratio_threshold=2.4,
             initial_prompt=prompt if prompt else None,
-            beam_size=1,
-            best_of=1,
+            beam_size=3,
+            best_of=3,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200),
+            vad_parameters=dict(min_silence_duration_ms=300, speech_pad_ms=200),
         )
         if language:
             kwargs["language"] = language
@@ -121,13 +123,39 @@ class WhisperEngine:
 
     @staticmethod
     def _bytes_to_numpy(audio_bytes: bytes) -> np.ndarray:
-        """Convierte WAV bytes a numpy array float32."""
+        """Convierte audio (WAV, webm, mp3, etc.) a numpy array float32 16kHz mono."""
         try:
-            wf = wave.open(io.BytesIO(audio_bytes), "rb")
-            frames = wf.readframes(wf.getnframes())
-            wf.close()
-            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-            return audio
+            # Si ya es WAV (RIFF), parsear directo
+            if audio_bytes[:4] == b"RIFF":
+                wf = wave.open(io.BytesIO(audio_bytes), "rb")
+                frames = wf.readframes(wf.getnframes())
+                wf.close()
+                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                return audio
+
+            # Si no es WAV, convertir con ffmpeg a WAV 16kHz mono
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=True) as f_in:
+                f_in.write(audio_bytes)
+                f_in.flush()
+                result = subprocess.run(
+                    [
+                        "ffmpeg", "-i", f_in.name,
+                        "-f", "wav", "-acodec", "pcm_s16le",
+                        "-ar", "16000", "-ac", "1",
+                        "-hide_banner", "-loglevel", "error",
+                        "pipe:1",
+                    ],
+                    capture_output=True,
+                )
+                if result.returncode != 0 or not result.stdout:
+                    logger.warning("ffmpeg error: %s", result.stderr.decode()[:200])
+                    return np.array([], dtype=np.float32)
+
+                wf = wave.open(io.BytesIO(result.stdout), "rb")
+                frames = wf.readframes(wf.getnframes())
+                wf.close()
+                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                return audio
         except Exception as e:
             logger.warning("Error parseando audio: %s", e)
             return np.array([], dtype=np.float32)
