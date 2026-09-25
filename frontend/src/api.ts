@@ -1,4 +1,4 @@
-import type { RoomsResponse, GlossaryResponse, GlossaryTerm, SummaryResponse, KeyMomentsResponse } from "./types";
+import type { RoomsResponse, SummaryResponse, KeyMomentsResponse } from "./types";
 
 const API_BASE = "";
 
@@ -39,38 +39,6 @@ export const api = {
 
   getSubtitles: async (room: string) => {
     const resp = await fetchWithNgrok(`/api/rooms/${room}/subtitles`);
-    return resp.json();
-  },
-
-  getGlossary: async (): Promise<GlossaryResponse> => {
-    const resp = await fetchWithNgrok("/api/admin/glossary");
-    return resp.json();
-  },
-
-  addTerm: async (original: string, translation: string): Promise<unknown> => {
-    const resp = await fetchWithNgrok("/api/admin/glossary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ original, translation }),
-    });
-    return resp.json();
-  },
-
-  updateTerm: async (original: string, translation: string): Promise<unknown> => {
-    const resp = await fetchWithNgrok("/api/admin/glossary", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ original, translation }),
-    });
-    return resp.json();
-  },
-
-  deleteTerm: async (original: string): Promise<unknown> => {
-    const resp = await fetchWithNgrok("/api/admin/glossary", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ original }),
-    });
     return resp.json();
   },
 

@@ -22,7 +22,6 @@ from src.engine.whisper_engine import WhisperEngine
 from src.engine.translator import GemmaTranslator
 from src.engine.room_manager import RoomManager
 from src.services.subtitle_store import SubtitleStore
-from src.services.glossary_manager import GlossaryManager
 from src.services.metrics_collector import MetricsCollector
 
 logging.basicConfig(
@@ -54,8 +53,7 @@ def run_test():
 
     # 1) Test Gemma primero (sin audio)
     logger.info("--- Test 1: Gemma translation ---")
-    glossary = GlossaryManager()
-    translator = GemmaTranslator(target_lang="es", glossary=glossary)
+    translator = GemmaTranslator(target_lang="es")
     test_text = "We are deploying a multi-channel audio stream using WebSockets."
     translated = translator.translate(test_text)
     logger.info("Original: %s", test_text)

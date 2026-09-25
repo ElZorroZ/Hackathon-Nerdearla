@@ -6,7 +6,6 @@ from typing import Optional
 import ollama
 
 from src.config import GEMMA_MODEL, TARGET_LANG, OLLAMA_HOST
-from src.services.glossary_manager import GlossaryManager
 
 logger = logging.getLogger("translator")
 
@@ -26,12 +25,10 @@ class GemmaTranslator:
         model: str = GEMMA_MODEL,
         target_lang: str = TARGET_LANG,
         host: str = OLLAMA_HOST,
-        glossary: Optional[GlossaryManager] = None,
     ):
         self.model = model
         self.target_lang = target_lang
         self.client = ollama.Client(host=f"http://{host}")
-        self.glossary = glossary
         logger.info("GemmaTranslator inicializado: model=%s host=%s", model, host)
 
     def translate(self, text: str, target_lang: Optional[str] = None) -> str:
@@ -46,20 +43,11 @@ class GemmaTranslator:
         if self._is_already_target_lang(text, lang):
             return text
 
-        glossary_ctx = ""
-        if self.glossary:
-            glossary_str = self.glossary.build_prompt_context()
-            if glossary_str:
-                glossary_ctx = (
-                    f"You are an expert technical translator for IT conferences "
-                    f"like Nerdearla. Translate to {target}. "
-                    f"Keep proper technology names (WebSocket, API, GPU, etc). "
-                    f"Strictly apply this glossary:\n{glossary_str}\n\n"
-                )
-
         prompt = (
-            f"{glossary_ctx}"
-            f"Translate to {target}. Output ONLY the translation.\n"
+            f"You are an expert technical translator for IT conferences "
+            f"like Nerdearla. Translate to {target}. "
+            f"Keep proper technology names (WebSocket, API, GPU, etc).\n"
+            f"Output ONLY the translation.\n"
             f"Text: {text}\n"
             f"Translation:"
         )

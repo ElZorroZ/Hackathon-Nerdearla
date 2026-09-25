@@ -47,15 +47,6 @@ export interface RoomsResponse {
   rooms: RoomInfo[];
 }
 
-export interface GlossaryResponse {
-  terms: Record<string, string>;
-}
-
-export interface GlossaryTerm {
-  original: string;
-  translation: string;
-}
-
 export interface KeyMoment {
   timestamp: number;
   time_str: string;

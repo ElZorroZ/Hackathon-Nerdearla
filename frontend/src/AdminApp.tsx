@@ -4,7 +4,6 @@ import type { RoomMetrics, SystemMetrics, MetricsPayload, RoomInfo } from "./typ
 import { Icon } from "./components/Icon";
 import { MetricCard } from "./components/MetricCard";
 import { SystemMetricsCard } from "./components/SystemMetricsCard";
-import { GlossaryManager } from "./components/GlossaryManager";
 import { ExportButton } from "./components/ExportButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,7 @@ import { RefreshCwIcon, type RefreshCwIconHandle } from "@/components/ui/refresh
 import { MenuIcon, type MenuIconHandle } from "@/components/ui/menu-icon";
 import { AudioQualityWidget } from "./components/AudioQualityWidget";
 
-type AdminView = "dashboard" | "salas" | "glosario";
+type AdminView = "dashboard" | "salas";
 
 export function AdminApp() {
   const [view, setView] = useState<AdminView>("dashboard");
@@ -370,7 +369,6 @@ export function AdminApp() {
   const navItems: { id: AdminView; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
     { id: "salas", label: "Salas", icon: "radio" },
-    { id: "glosario", label: "Glosario", icon: "book" },
   ];
 
   return (
@@ -439,7 +437,6 @@ export function AdminApp() {
             <h2 className="text-base font-semibold text-white">
               {view === "dashboard" && "Dashboard"}
               {view === "salas" && "Gestión de Salas"}
-              {view === "glosario" && "Glosario"}
             </h2>
           </div>
           <div className="flex items-center gap-2 text-xs">
@@ -707,12 +704,6 @@ export function AdminApp() {
                   ))}
                 </div>
               </section>
-            </div>
-          )}
-
-          {view === "glosario" && (
-            <div className="max-w-3xl mx-auto">
-              <GlossaryManager />
             </div>
           )}
         </main>

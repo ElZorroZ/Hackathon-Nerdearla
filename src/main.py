@@ -11,10 +11,6 @@ Rutas:
   POST /api/rooms/{room_id}/clear      - Limpiar buffer
   GET  /api/rooms/{room_id}/export     - Exportar SRT/VTT/TXT
   GET  /api/rooms/{room_id}/subtitles  - Historial de subtítulos
-  GET  /api/admin/glossary             - Obtener glosario
-  POST /api/admin/glossary             - Agregar término
-  PUT  /api/admin/glossary             - Actualizar término
-  DELETE /api/admin/glossary           - Eliminar término
   GET  /api/admin/metrics              - Métricas del sistema
   WS   /ws/{room_id}                   - Subtítulos en vivo
   WS   /ws/admin                       - Dashboard de admin en vivo
@@ -39,11 +35,9 @@ from src.engine.whisper_engine import WhisperEngine
 from src.engine.translator import GemmaTranslator
 from src.engine.room_manager import RoomManager
 from src.services.subtitle_store import SubtitleStore
-from src.services.glossary_manager import GlossaryManager
 from src.services.metrics_collector import MetricsCollector
 from src.api.routes_rooms import router as rooms_router, init_room_routes
 from src.api.routes_export import router as export_router, init_export_routes
-from src.api.routes_glossary import router as glossary_router, init_glossary_routes
 from src.api.routes_admin import router as admin_router, init_admin_routes
 from src.api.websockets import router as ws_router, WSConnectionManager, init_ws_routes
 
@@ -58,21 +52,19 @@ manager: RoomManager = None
 ws_manager: WSConnectionManager = None
 metrics: MetricsCollector = None
 subtitle_store: SubtitleStore = None
-glossary: GlossaryManager = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global manager, ws_manager, metrics, subtitle_store, glossary
+    global manager, ws_manager, metrics, subtitle_store
 
     logger.info("Inicializando motor Whisper + Gemma...")
 
     subtitle_store = SubtitleStore(max_entries=500)
     metrics = MetricsCollector()
-    glossary = GlossaryManager()
 
     whisper_engine = WhisperEngine()
-    translator = GemmaTranslator(glossary=glossary)
+    translator = GemmaTranslator()
     manager = RoomManager(whisper_engine, translator, subtitle_store, metrics)
 
     ws_manager = WSConnectionManager()
@@ -100,13 +92,11 @@ async def lifespan(app: FastAPI):
     # Inicializar routers con dependencias (después de que los globals estén listos)
     init_room_routes(manager, DEFAULT_ROOMS, ws_manager, metrics)
     init_export_routes(subtitle_store, DEFAULT_ROOMS)
-    init_glossary_routes(glossary)
     init_admin_routes(metrics)
     init_ws_routes(ws_manager, DEFAULT_ROOMS, on_room_lang=manager.request_room_lang)
 
     app.include_router(rooms_router)
     app.include_router(export_router)
-    app.include_router(glossary_router)
     app.include_router(admin_router)
     app.include_router(ws_router)
 

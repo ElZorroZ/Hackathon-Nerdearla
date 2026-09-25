@@ -24,7 +24,6 @@ DEFAULT_ROOMS = ["sala-1", "sala-2"]
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-GLOSSARY_PATH = os.path.join(ASSETS_DIR, "glossary.json")
 
 
 def detect_ollama_host() -> str:
