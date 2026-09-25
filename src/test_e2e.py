@@ -26,9 +26,9 @@ SERVER = "http://localhost:8000"
 WS_URL = "ws://localhost:8000"
 ROOMS = ["sala-1"]
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "samples")
-CHUNK_SECONDS = 2.0
+CHUNK_SECONDS = 3.0
 SAMPLE_RATE = 16000
-CHUNK_OVERLAP = 0.0  # sin solapamiento para no duplicar trabajo
+CHUNK_OVERLAP = 0.5  # solapamiento para no cortar palabras en bordes
 MAX_CHUNKS = 30  # limitar cantidad de chunks para test rápido
 
 
@@ -176,7 +176,7 @@ async def run_test():
     # Streaming de audio en paralelo (una tarea por sala)
     streamers = []
     for room in ROOMS:
-        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=CHUNK_SECONDS)))
+        streamers.append(asyncio.create_task(stream_chunks(room, samples[room], delay=CHUNK_SECONDS - CHUNK_OVERLAP)))
 
     await asyncio.gather(*streamers)
     logger.info("Streaming completado. Esperando subtítulos...")

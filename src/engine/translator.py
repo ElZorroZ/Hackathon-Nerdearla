@@ -79,16 +79,17 @@ class GemmaTranslator:
             return text
 
     def _is_already_target_lang(self, text: str) -> bool:
-        """Heurística simple: si el texto ya está en el idioma objetivo, saltar traducción."""
+        """Heurística estricta: si el texto ya está en el idioma objetivo, saltar traducción."""
         if self.target_lang == "es":
             spanish_markers = [
                 " que ", " de ", " la ", " el ", " los ", " las ", " y ", " en ",
                 " un ", " una ", " por ", " con ", " para ", " no ", " sí ",
-                " gracias", " hola", " bienvenido", " chicos",
+                " gracias", " hola", " bienvenido", " chicos", " somos ",
+                " hoy ", " vamos ", " cuando ", " como ", " porque ",
             ]
             text_lower = f" {text.lower()} "
             matches = sum(1 for m in spanish_markers if m in text_lower)
             words = len(text.split())
-            if words > 0 and matches / max(words, 1) > 0.15:
+            if words >= 3 and matches >= 2 and matches / max(words, 1) > 0.2:
                 return True
         return False

@@ -36,6 +36,7 @@ class RoomManager:
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
         self._paused: set[str] = set()
+        self._last_text: dict[str, str] = {}  # contexto por sala
 
     def add_room(self, room_id: str) -> None:
         with self._lock:
@@ -131,14 +132,32 @@ class RoomManager:
                 t0 = time.perf_counter()
 
                 try:
-                    original = self.whisper.transcribe(chunk.audio_bytes)
+                    prev_text = self._last_text.get(room_id, "")
+                    original, detected_lang = self.whisper.transcribe(chunk.audio_bytes, initial_prompt=prev_text)
                     t1 = time.perf_counter()
 
                     if not original:
+                        # Limpiar contexto si el chunk fue descartado
+                        self._last_text[room_id] = ""
                         continue
 
-                    translated = self.translator.translate(original)
-                    t2 = time.perf_counter()
+                    # Deduplicar solapamiento: si el inicio del texto nuevo coincide
+                    # con el final del texto anterior (por chunk overlap), cortar la parte repetida
+                    prev_text = self._last_text.get(room_id, "")
+                    if prev_text:
+                        original = self._dedup_overlap(prev_text, original)
+
+                    # Guardar contexto para el próximo chunk
+                    self._last_text[room_id] = original
+
+                    # Si Whisper detectó que el texto ya está en el idioma destino, no traducir
+                    target_lang = self.translator.target_lang
+                    if detected_lang and detected_lang == target_lang:
+                        translated = original
+                        t2 = time.perf_counter()
+                    else:
+                        translated = self.translator.translate(original)
+                        t2 = time.perf_counter()
 
                     whisper_ms = (t1 - t0) * 1000
                     gemma_ms = (t2 - t1) * 1000
@@ -175,3 +194,35 @@ class RoomManager:
 
             if not processed_any:
                 time.sleep(0.05)
+
+    @staticmethod
+    def _dedup_overlap(prev: str, new: str) -> str:
+        """Corta la parte solapada del inicio de `new` que ya estaba al final de `prev`."""
+        import re
+
+        def normalize(w: str) -> str:
+            return re.sub(r'[^\w]', '', w.lower())
+
+        prev_words = prev.split()
+        new_words = new.split()
+        if not prev_words or not new_words:
+            return new
+
+        prev_norm = [normalize(w) for w in prev_words]
+        new_norm = [normalize(w) for w in new_words]
+
+        # Buscar el mayor prefijo de new que coincide con un sufijo de prev
+        max_overlap = 0
+        max_check = min(len(prev_norm), len(new_norm), 15)
+        for n in range(max_check, 0, -1):
+            if prev_norm[-n:] == new_norm[:n]:
+                max_overlap = n
+                break
+
+        if max_overlap > 0:
+            deduped = " ".join(new_words[max_overlap:])
+            if deduped.strip():
+                logger.debug("Dedup: removed %d words from overlap: '%s' -> '%s'",
+                             max_overlap, new[:60], deduped[:60])
+                return deduped
+        return new
