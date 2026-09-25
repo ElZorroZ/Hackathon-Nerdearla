@@ -207,7 +207,7 @@ export function App() {
           </div>
 
           {/* Language select with @beui/select */}
-          <div className="w-32 sm:w-44">
+          <div className="w-24 sm:w-44">
             <Select value={lang} onValueChange={setLang}>
               <SelectTrigger>
                 <SelectValue placeholder="Idioma" />

@@ -74,16 +74,16 @@ export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps
   return (
     <>
       {/* Floating emoji overlay */}
-      <div className="pointer-events-none fixed bottom-20 right-6 z-50 h-[60vh] w-32 overflow-hidden sm:bottom-24 sm:right-8">
+      <div className="pointer-events-none fixed bottom-16 right-4 z-50 h-[50vh] w-28 overflow-hidden sm:bottom-24 sm:right-8 sm:w-32">
         <AnimatePresence>
           {floatingEmojis.map((fe) => (
             <motion.div
               key={fe.id}
-              className="absolute text-3xl sm:text-4xl"
+              className="absolute text-2xl sm:text-4xl"
               style={{ left: `${fe.x}%`, bottom: 0 }}
               initial={{ y: 0, opacity: 1, scale: 0.5 }}
               animate={{
-                y: -window.innerHeight * 0.5,
+                y: -400,
                 opacity: [1, 1, 0],
                 scale: [0.5, 1.2, 1],
                 x: [0, 20, -10, 15],
@@ -102,12 +102,12 @@ export function ReactionsBar({ room, ws, onReactionReceived }: ReactionsBarProps
       </div>
 
       {/* Reaction trigger button */}
-      <div className="fixed bottom-6 right-6 z-50 sm:bottom-8 sm:right-8">
+      <div className="fixed bottom-4 right-4 z-50 sm:bottom-8 sm:right-8">
         <EmojiReaction
           onReact={handleReact}
           size="md"
           align="right"
-          className="shadow-lg"
+          className="shadow-lg shadow-black/40"
         />
       </div>
     </>

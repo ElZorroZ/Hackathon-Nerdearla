@@ -332,7 +332,7 @@ export function SelectContent({ className, children }: SelectContentProps) {
       role="listbox"
       aria-labelledby={ctx.triggerId}
       aria-hidden={!open}
-      {...({ inert: !open } as Record<string, unknown>)}
+      {...({ inert: !ctx.open ? "" : undefined } as Record<string, unknown>)}
       initial={false}
       animate={
         ctx.reduce

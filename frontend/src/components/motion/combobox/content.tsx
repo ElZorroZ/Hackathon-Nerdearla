@@ -110,7 +110,7 @@ export function ComboboxContent({
       data-combobox-content=""
       data-side={actualSide}
       aria-hidden={!context.open}
-      {...({ inert: !context.open } as Record<string, unknown>)}
+      {...({ inert: !context.open ? "" : undefined } as Record<string, unknown>)}
       initial={false}
       animate={{
         height: context.open ? surfaceHeight : 0,
