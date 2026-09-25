@@ -77,6 +77,7 @@ def init_room_routes(
         rooms.remove(room_id)
         room_names.pop(room_id, None)
         room_langs.pop(room_id, None)
+        manager.remove_room(room_id)
         logger.info("Sala eliminada: %s", room_id)
         return {"status": "deleted", "room": room_id}
 

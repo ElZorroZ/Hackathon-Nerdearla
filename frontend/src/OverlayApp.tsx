@@ -4,6 +4,7 @@ interface SubtitlePayload {
   room: string;
   original: string;
   translated: string;
+  translations?: Record<string, string>;
   timestamp: number;
   index: number;
   whisper_ms: number;
@@ -15,6 +16,7 @@ interface ActiveLine {
   text: string;
   original?: string;
   id: number;
+  index?: number;
 }
 
 const FONT_SIZES: Record<string, string> = {
@@ -39,8 +41,13 @@ export function OverlayApp() {
   const fontSize = params.get("fontSize") || "medium";
   const align = params.get("align") || "center";
   const showOriginal = params.get("showOriginal") === "true";
+  // Show a small connection status indicator by default so the page isn't
+  // perceived as blank/broken. Pass ?status=false to hide it for OBS production.
+  const showStatus = params.get("status") !== "false";
 
   const [lines, setLines] = useState<ActiveLine[]>([]);
+  const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<number>(0);
   const lineIdRef = useRef(0);
@@ -60,6 +67,16 @@ export function OverlayApp() {
 
       ws.onopen = () => {
         reconnectRef.current = 0;
+        setConnected(true);
+        setReconnecting(false);
+        // Pedir al backend la traducción al idioma del query param (?lang=pt)
+        if (lang && lang !== "original") {
+          try {
+            ws.send(JSON.stringify({ type: "lang", lang }));
+          } catch {
+            // ignore
+          }
+        }
       };
 
       ws.onmessage = (event) => {
@@ -68,7 +85,11 @@ export function OverlayApp() {
           const data: SubtitlePayload = JSON.parse(event.data);
           if (data.type === "metrics") return;
 
-          const translated = data.translated || "";
+          // Filter: only display subtitles for THIS room
+          if (data.room && data.room !== room) return;
+
+          // Preferir la traducción al idioma pedido por query param
+          const translated = data.translations?.[lang] || data.translated || "";
           const original = data.original || "";
           if (!translated && !original) return;
 
@@ -77,9 +98,20 @@ export function OverlayApp() {
             text: translated,
             original: showOriginal && original && original !== translated ? original : undefined,
             id,
+            index: data.index,
           };
 
           setLines((prev) => {
+            // Si llega un update con el mismo index (traducción background),
+            // reemplazar la línea en vez de duplicarla
+            if (data.index !== undefined) {
+              const existing = prev.findIndex((l) => l.index === data.index);
+              if (existing >= 0) {
+                const next = [...prev];
+                next[existing] = newLine;
+                return next;
+              }
+            }
             const next = [...prev, newLine];
             // Keep max 2 lines
             return next.slice(-2);
@@ -97,6 +129,8 @@ export function OverlayApp() {
 
       ws.onclose = () => {
         if (!mounted) return;
+        setConnected(false);
+        setReconnecting(true);
         const delay = Math.min(1000 * Math.pow(1.5, reconnectRef.current), 10000);
         reconnectRef.current++;
         setTimeout(() => {
@@ -117,7 +151,7 @@ export function OverlayApp() {
         wsRef.current.close();
       }
     };
-  }, [room, showOriginal]);
+  }, [room, lang, showOriginal]);
 
   return (
     <div
@@ -135,6 +169,39 @@ export function OverlayApp() {
         fontFamily: "'Inter', 'Roboto', system-ui, sans-serif",
       }}
     >
+      {/* Connection status indicator — hidden when ?status=false for OBS production */}
+      {showStatus && (
+        <div
+          style={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: connected ? "#22c55e" : reconnecting ? "#f59e0b" : "#ef4444",
+            background: "rgba(0, 0, 0, 0.55)",
+            padding: "4px 10px",
+            borderRadius: 8,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: connected ? "#22c55e" : reconnecting ? "#f59e0b" : "#ef4444",
+              animation: "overlayPulse 2s infinite",
+            }}
+          />
+          {connected ? "EN VIVO" : reconnecting ? "RECONECTANDO..." : "DESCONECTADO"}
+          <span style={{ opacity: 0.6, fontWeight: 400 }}>· {room}</span>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -192,6 +259,10 @@ export function OverlayApp() {
         @keyframes overlayFadeIn {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes overlayPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
         }
         html, body, #root {
           background: transparent !important;

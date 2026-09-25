@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Smile } from "lucide-react";
+import type { MutableRefObject } from "react";
 
 const REACTIONS = [
   "\u{1F680}", // 🚀 rocket
@@ -21,7 +22,7 @@ interface FloatingEmoji {
 
 interface ReactionsBarProps {
   room: string;
-  ws: WebSocket | null;
+  ws: MutableRefObject<WebSocket | null>;
 }
 
 export function ReactionsBar({ room, ws }: ReactionsBarProps) {
@@ -30,14 +31,16 @@ export function ReactionsBar({ room, ws }: ReactionsBarProps) {
   const seedRef = useRef(0);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Listen for incoming reactions on the WebSocket
+  // Listen for incoming reactions on the WebSocket. We poll-read ws.current
+  // so reconnects are picked up automatically.
   useEffect(() => {
-    if (!ws) return;
+    let currentWs: WebSocket | null = null;
+    let attached: WebSocket | null = null;
 
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "reaction" && data.emoji) {
+        if (data.type === "reaction" && data.emoji && data.room === room) {
           const id = ++seedRef.current;
           const x = Math.random() * 60 + 20;
           setFloatingEmojis((prev) => [...prev, { id, emoji: data.emoji, x }]);
@@ -50,9 +53,22 @@ export function ReactionsBar({ room, ws }: ReactionsBarProps) {
       }
     };
 
-    ws.addEventListener("message", handleMessage);
-    return () => ws.removeEventListener("message", handleMessage);
-  }, [ws]);
+    // Poll until ws.current is available and open, then attach listener.
+    // Re-check on interval so reconnects swap the listener to the new socket.
+    const interval = window.setInterval(() => {
+      currentWs = ws.current;
+      if (currentWs && currentWs !== attached) {
+        if (attached) attached.removeEventListener("message", handleMessage);
+        currentWs.addEventListener("message", handleMessage);
+        attached = currentWs;
+      }
+    }, 500);
+
+    return () => {
+      window.clearInterval(interval);
+      if (attached) attached.removeEventListener("message", handleMessage);
+    };
+  }, [room, ws]);
 
   // Close popover on outside click
   useEffect(() => {
@@ -68,8 +84,9 @@ export function ReactionsBar({ room, ws }: ReactionsBarProps) {
 
   const sendReaction = useCallback(
     (emoji: string) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "reaction", emoji }));
+      const socket = ws.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "reaction", emoji }));
     },
     [ws]
   );

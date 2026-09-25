@@ -61,18 +61,30 @@ export function App() {
       window.dispatchEvent(new CustomEvent("key_moment", { detail: data }));
       return;
     }
+    // Filter: only display subtitles for the selected room
+    if (data.room && data.room !== selectedRoom) return;
     setSubtitles((prev: SubtitleEntry[]) => {
-      // Dedupe by index: cached (localStorage) entries can overlap with live feed,
-      // and index counters reset on backend restart — replace stale same-index entry
-      const filtered = data.index ? prev.filter((s) => s.index !== data.index) : prev;
-      const next = [...filtered, data].slice(-200);
+      // Dedupe by index: updates (traducciones background) reemplazan EN POSICIÓN,
+      // no se mueven al final — así se mantiene el orden cronológico
+      const next = [...prev];
+      if (data.index !== undefined) {
+        const idx = next.findIndex((s) => s.index === data.index);
+        if (idx >= 0) {
+          next[idx] = data;
+        } else {
+          next.push(data);
+        }
+      } else {
+        next.push(data);
+      }
+      const trimmed = next.slice(-200);
       // Persist to localStorage for offline resilience
       try {
-        localStorage.setItem(`subs_${data.room || selectedRoom}`, JSON.stringify(next));
+        localStorage.setItem(`subs_${data.room || selectedRoom}`, JSON.stringify(trimmed));
       } catch {
         // localStorage may be full, ignore
       }
-      return next;
+      return trimmed;
     });
   }, [selectedRoom]);
 
@@ -329,7 +341,7 @@ export function App() {
       </footer>
 
       {selectedRoom && (
-        <ReactionsBar room={selectedRoom} ws={ws.current} />
+        <ReactionsBar room={selectedRoom} ws={ws} />
       )}
     </div>
   );

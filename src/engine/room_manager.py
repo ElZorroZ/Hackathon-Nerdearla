@@ -4,6 +4,7 @@ import logging
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from src.config import CHUNK_DURATION
@@ -42,6 +43,10 @@ class RoomManager:
         self._word_counts: dict[str, int] = {}  # contador de palabras por sala
         self._key_moments: dict[str, list[KeyMoment]] = {}  # hitos por sala
         self._key_moment_callbacks: list = []  # callbacks para emitir key moments vía WS
+        # Traducciones en background: no bloquean el loop de Whisper
+        self._translator_pool = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="gemma"
+        )
 
     def add_room(self, room_id: str, lang: str = "es") -> None:
         with self._lock:
@@ -50,10 +55,25 @@ class RoomManager:
                 self.results_queues[room_id] = queue.Queue(maxsize=100)
                 self.store.register_room(room_id)
                 self.metrics.register_room(room_id)
-                self._room_langs[room_id] = lang
                 self._word_counts[room_id] = 0
                 self._key_moments[room_id] = []
                 logger.info("Sala registrada: %s (lang=%s)", room_id, lang)
+            # Siempre actualizar el idioma (la sala puede ya existir si fue recreada)
+            self._room_langs[room_id] = lang
+            self._last_text[room_id] = ""
+
+    def remove_room(self, room_id: str) -> None:
+        """Limpia las colas y estado de una sala eliminada."""
+        with self._lock:
+            self.audio_queues.pop(room_id, None)
+            self.results_queues.pop(room_id, None)
+            self._last_text.pop(room_id, None)
+            self._room_langs.pop(room_id, None)
+            self._requested_langs.pop(room_id, None)
+            self._word_counts.pop(room_id, None)
+            self._key_moments.pop(room_id, None)
+            self._paused.discard(room_id)
+            logger.info("Sala eliminada del RoomManager: %s", room_id)
 
     # Zero-Lag: si la cola acumula más de MAX_QUEUE_LAG chunks, flush y tomar el más reciente
     MAX_QUEUE_LAG = 3
@@ -224,22 +244,32 @@ class RoomManager:
                     # Guardar contexto para el próximo chunk
                     self._last_text[room_id] = original
 
-                    # Traducir a todos los idiomas pedidos por clientes
+                    # Traducir a todos los idiomas pedidos por clientes.
+                    # Dedup: no llamar a Gemma si el destino coincide con el
+                    # idioma detectado o con el idioma fuente de la sala.
+                    # Los idiomas que SÍ necesitan Gemma se resuelven en
+                    # background: el subtítulo se emite YA con el original y
+                    # luego se re-emite actualizado con el mismo index.
                     target_langs = self.get_requested_langs(room_id)
                     translations: dict[str, str] = {}
-                    translated = original
+                    detected = (detected_lang or "").lower().strip()
+                    source_lang = (room_lang or "").lower().strip()
+                    pending_langs: list[str] = []
                     for tl in target_langs:
-                        if detected_lang and detected_lang == tl:
-                            translations[tl] = original
+                        tl_norm = tl.lower().strip()
+                        if not tl_norm or tl_norm in translations:
+                            continue
+                        if tl_norm == detected or tl_norm == source_lang:
+                            translations[tl_norm] = original
                         else:
-                            translations[tl] = self.translator.translate(original, target_lang=tl)
+                            pending_langs.append(tl_norm)
                     # Compat: `translated` conserva el idioma default (TARGET_LANG)
                     default_lang = self.translator.target_lang
                     translated = translations.get(default_lang, original)
                     t2 = time.perf_counter()
 
                     whisper_ms = (t1 - t0) * 1000
-                    gemma_ms = (t2 - t1) * 1000
+                    gemma_ms = 0.0  # se actualiza cuando llega la traducción
 
                     entry = SubtitleEntry(
                         room_id=room_id,
@@ -268,19 +298,71 @@ class RoomManager:
                         pass
 
                     logger.info(
-                        "[%s] whisper=%.0fms gemma=%.0fms | orig: %s | trad: %s",
+                        "[%s] whisper=%.0fms gemma=bg | orig: %s | trad: %s",
                         room_id,
                         whisper_ms,
-                        gemma_ms,
                         original[:60],
                         translated[:60],
                     )
+
+                    # Completar traducciones pendientes en background.
+                    # Una task por idioma: se traducen en paralelo y cada una
+                    # re-emite el entry actualizado (el frontend reemplaza por index)
+                    for tl in pending_langs:
+                        self._translator_pool.submit(
+                            self._fill_translation,
+                            room_id,
+                            entry,
+                            original,
+                            tl,
+                            t1,
+                        )
                 except Exception as e:
                     logger.error("[%s] Error procesando chunk: %s", room_id, e)
                     self.metrics.record_error(room_id, str(e))
 
             if not processed_any:
                 time.sleep(0.05)
+
+    def _fill_translation(
+        self,
+        room_id: str,
+        entry: SubtitleEntry,
+        original: str,
+        target_lang: str,
+        t_start: float,
+    ) -> None:
+        """Completa la traducción de un subtítulo a un idioma en background
+        y re-emite el entry actualizado con el mismo index (el frontend lo
+        reemplaza por index, así la línea se actualiza sola)."""
+        try:
+            # Si el subtítulo ya es viejo, la traducción llegaría desfasada:
+            # descartar el trabajo para no saturar Ollama
+            if time.time() - entry.start_time > 12.0:
+                return
+            entry.translations[target_lang] = self.translator.translate(
+                original, target_lang=target_lang
+            )
+            entry.gemma_latency_ms = (time.perf_counter() - t_start) * 1000
+            entry.translated = entry.translations.get(
+                self.translator.target_lang, original
+            )
+            # Re-emitir como update con el mismo index
+            q = self.results_queues.get(room_id)
+            if q is not None:
+                try:
+                    q.put_nowait(entry)
+                except queue.Full:
+                    pass
+            logger.info(
+                "[%s] gemma-bg=%.0fms lang=%s | trad: %s",
+                room_id,
+                entry.gemma_latency_ms,
+                target_lang,
+                entry.translations[target_lang][:60],
+            )
+        except Exception as e:
+            logger.error("[%s] Error en traducción background: %s", room_id, e)
 
     @staticmethod
     def _dedup_overlap(prev: str, new: str) -> str:

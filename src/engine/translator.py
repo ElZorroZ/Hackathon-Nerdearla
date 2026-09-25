@@ -1,6 +1,7 @@
 """Traductor Gemma via Ollama con soporte de glosario técnico."""
 
 import logging
+import os
 from typing import Optional
 
 import ollama
@@ -28,7 +29,11 @@ class GemmaTranslator:
     ):
         self.model = model
         self.target_lang = target_lang
-        self.client = ollama.Client(host=f"http://{host}")
+        # Timeout generoso: la traducción corre en background (no bloquea
+        # Whisper) y Ollama encola requests por modelo — con varias salas
+        # cada request puede esperar a la anterior.
+        timeout = float(os.environ.get("OLLAMA_TIMEOUT", "30.0"))
+        self.client = ollama.Client(host=f"http://{host}", timeout=timeout)
         logger.info("GemmaTranslator inicializado: model=%s host=%s", model, host)
 
     def translate(self, text: str, target_lang: Optional[str] = None) -> str:
@@ -60,11 +65,16 @@ class GemmaTranslator:
                     "temperature": 0.2,
                     "num_predict": 64,
                     "stop": ["\n\n", "Text:", "Translation:"],
+                    # CPU only: no competir con Whisper por la GPU
+                    "num_gpu": 0,
                 },
             )
-            return response.get("response", "").strip()
+            result = response.get("response", "").strip()
+            if not result:
+                return text
+            return result
         except Exception as e:
-            logger.error("Error en Gemma: %s", e)
+            logger.warning("Gemma translate falló (usando original): %s", e)
             return text
 
     def _is_already_target_lang(self, text: str, lang: Optional[str] = None) -> bool:
@@ -104,6 +114,7 @@ class GemmaTranslator:
                     "temperature": 0.3,
                     "num_predict": 256,
                     "stop": ["\n\n\n"],
+                    "num_gpu": 0,
                 },
             )
             return response.get("response", "").strip()
@@ -131,6 +142,7 @@ class GemmaTranslator:
                     "temperature": 0.2,
                     "num_predict": 20,
                     "stop": ["\n", "Text:", "Title:"],
+                    "num_gpu": 0,
                 },
             )
             title = response.get("response", "").strip()

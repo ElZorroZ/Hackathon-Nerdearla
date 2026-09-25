@@ -84,35 +84,64 @@ class WhisperEngine:
             log_prob_threshold=-1.0,
             compression_ratio_threshold=2.4,
             initial_prompt=prompt if prompt else None,
-            beam_size=3,
-            best_of=3,
+            beam_size=5,
+            best_of=5,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=300, speech_pad_ms=200),
+            vad_parameters=dict(min_silence_duration_ms=700, speech_pad_ms=400),
         )
         if language:
             kwargs["language"] = language
 
         segments, info = self.model.transcribe(audio_np, **kwargs)
         seg_list = list(segments)
-        text = " ".join(seg.text.strip() for seg in seg_list).strip()
+        # Filtrar segmentos con alto no_speech_prob (alucinaciones en silencio)
+        # faster-whisper deberia hacerlo con no_speech_threshold, pero a veces
+        # pasan segmentos con no_speech alto que igual producen texto.
+        NO_SPEECH_FILTER = 0.6
+        filtered_segs = [s for s in seg_list if s.no_speech_prob < NO_SPEECH_FILTER]
+        text = " ".join(seg.text.strip() for seg in filtered_segs).strip()
         detected_lang = info.language if info else ""
-        avg_logprob = sum(s.avg_logprob for s in seg_list) / len(seg_list) if seg_list else 0.0
+        avg_logprob = sum(s.avg_logprob for s in filtered_segs) / len(filtered_segs) if filtered_segs else 0.0
         no_speech_prob = max((s.no_speech_prob for s in seg_list), default=0.0)
+
+        # Si todos los segmentos fueron filtrados por no_speech, descartar
+        if not text or not filtered_segs:
+            logger.debug("Chunk descartado: todos los segmentos son no_speech (prob=%.2f)", no_speech_prob)
+            return "", "", avg_logprob, no_speech_prob
 
         # Filtrar transcripciones basura (muy cortas o repetitivas)
         if len(text) < 2:
             return "", "", avg_logprob, no_speech_prob
         words = text.split()
         if len(words) > 0:
-            unique_ratio = len(set(words)) / len(words)
-            if unique_ratio < 0.4 and len(words) > 2:
+            unique_ratio = len({w.lower().strip(".,;:!?") for w in words}) / len(words)
+            # Solo descartar alucinaciones de Whisper: muchas palabras (>6) con
+            # casi ninguna única (<0.25). Repeticiones cortas legítimas como
+            # "hola hola hola" pasan sin problema.
+            if unique_ratio < 0.25 and len(words) > 6:
                 logger.debug("Chunk descartado por repetitivo: %s", text[:60])
                 return "", "", avg_logprob, no_speech_prob
 
-        # Filtrar solo garbage obvio
-        GARBAGE_PATTERNS = {"music", "[music]", "!!!!", "..."}
-        if text.lower().strip() in GARBAGE_PATTERNS:
+        # Filtrar garbage obvio + alucinaciones clásicas de YouTube ( Whisper las
+        # genera cuando procesa silencio o música de cierre de video )
+        GARBAGE_PATTERNS = {
+            "music", "[music]", "!!!!", "...",
+        }
+        YOUTUBE_HALLUCINATIONS = {
+            "gracias", "¡gracias!", "gracias por ver el video",
+            "gracias por ver el video!", "¡gracias por ver el video!",
+            "¡suscríbete!", "suscríbete", "¡suscribete!", "suscribete",
+            "¡suscríbete al canal!", "suscríbete al canal",
+            "like and subscribe", "subscribe", "¡subscribe!",
+            "adiós", "chau", "¡adiós!", "bye",
+            "¡mierda!", "mierda",
+        }
+        text_lower = text.lower().strip().rstrip(".!¡¿?")
+        if text_lower in GARBAGE_PATTERNS or text.lower().strip() in GARBAGE_PATTERNS:
             logger.debug("Chunk descartado por garbage: %s", text[:60])
+            return "", "", avg_logprob, no_speech_prob
+        if text_lower in YOUTUBE_HALLUCINATIONS or text.lower().strip() in YOUTUBE_HALLUCINATIONS:
+            logger.debug("Chunk descartado por alucinación de YouTube: %s", text[:60])
             return "", "", avg_logprob, no_speech_prob
 
         # Filtrar texto con caracteres no-latinos (CJK, Korean, etc.)

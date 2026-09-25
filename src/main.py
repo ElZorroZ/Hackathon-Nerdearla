@@ -133,7 +133,8 @@ async def _result_broadcaster():
                     "whisper_ms": round(result.whisper_latency_ms, 1),
                     "gemma_ms": round(result.gemma_latency_ms, 1),
                 }
-                await ws_manager.broadcast_to_room(room_id, payload)
+                # Use result.room_id (not loop var) to ensure correct room
+                await ws_manager.broadcast_to_room(result.room_id, payload)
         await asyncio.sleep(0.05)
 
 
