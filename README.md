@@ -14,9 +14,9 @@ Transcripcion y traduccion simultanea (ES / EN / PT) procesada integramente en h
 
 ## El problema
 
-En Nerdearla tratamos de que el evento sea lo mas accesible posible. Por eso, desde hace varios anos ofrecemos transcripcion simultanea al español.
+Nerdearla busca que el evento sea lo mas accesible posible: desde hace varios anos ofrece transcripcion simultanea al español.
 
-Hoy resolvemos eso con herramientas comerciales: una para transcripcion español -> español y otra para traduccion en vivo ingles -> español. Este esquema funciono bien, con sus limitaciones, pero este ano tenemos **mas de 30 sesiones en ingles, muchas en simultaneo**, y la solucion que tenemos ya no escala: es cara, depende de operacion manual y no se puede replicar facilmente en otros eventos.
+Hoy eso se resuelve con herramientas comerciales: una para transcripcion español -> español y otra para traduccion en vivo ingles -> español. El esquema funciono bien, con sus limitaciones, pero este ano hay **mas de 30 sesiones en ingles, muchas en simultaneo**, y la solucion actual ya no escala: es cara, depende de operacion manual y no se puede replicar facilmente en otros eventos.
 
 Casi todas las conferencias tienen el mismo problema y ninguna tiene una solucion para resolverlo. El objetivo no es reemplazar a los interpretes humanos en todos los contextos, sino tener **la mejor solucion abierta** para que las conferencias open source sean accesibles.
 
@@ -41,8 +41,9 @@ Correr todo el pipeline de inferencia en hardware propio: el audio entra, se tra
 | Feature | Descripcion |
 |---|---|
 | **Transcripcion en vivo** | Whisper `large-v3` en GPU con faster-whisper, chunks de 3s con solapamiento para no cortar palabras |
-| **Traduccion simultanea** | Gemma 2 (2B) via Ollama, traduciendo a ES / EN / PT en paralelo segun el idioma que pida cada cliente |
+| **Traduccion simultanea** | Gemma 2 (2B) via Ollama corriendo en CPU (`num_gpu=0`), traduciendo a ES / EN / PT en paralelo segun el idioma que pida cada cliente |
 | **Multi-idioma por demanda** | Cada cliente pide su idioma via WebSocket; el backend traduce a todos los solicitados + el default |
+| **Traduccion async** | El subtitulo se emite apenas Whisper termina; cada traduccion corre en background y actualiza la misma linea por `index` sin reordenar el historial |
 | **Multicanal** | Procesamiento round-robin de multiples salas sobre una unica instancia de Whisper |
 | **Zero-Lag** | Politica de flush de cola: si el procesamiento se atrasa (>=3 chunks), descarta audio viejo y prioriza el tiempo real |
 | **Dedup de overlap** | Detecta y corta el texto duplicado entre chunks consecutivos por el solapamiento de 0.5s |
@@ -106,7 +107,7 @@ Todo corre en una sola maquina. Hardware de prueba del MVP:
 2. **Cola por sala**: `RoomManager` mantiene una cola por sala. Politica **Zero-Lag**: si acumula >=3 chunks, descarta los viejos y procesa el mas reciente.
 3. **Transcripcion**: `WhisperEngine` (singleton en GPU) transcribe cada chunk con `faster-whisper` (large-v3, float16, beam_size=5, VAD filter). Usa las ultimas ~20 palabras como `initial_prompt` para mantener contexto.
 4. **Dedup**: corta el texto del inicio del chunk nuevo que ya estaba al final del anterior (por el solapamiento).
-5. **Traduccion**: `GemmaTranslator` traduce a todos los idiomas que pidieron los clientes + `TARGET_LANG`. Si el texto ya esta en el idioma destino, lo salta (heuristica).
+5. **Traduccion**: el subtitulo se emite inmediatamente con el texto original. `GemmaTranslator` traduce en background (un task por idioma, en paralelo) a todos los idiomas que pidieron los clientes + `TARGET_LANG`, y re-emite el entry actualizado con el mismo `index`. Si el destino coincide con el idioma fuente/detectado, se salta la llamada a Gemma.
 6. **Broadcast**: el resultado se envia por WebSocket a todos los clientes de la sala, con `translations` (dict multi-idioma), latencias y metadata.
 
 ---
@@ -204,14 +205,29 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 ### 3. Probar con audios de muestra
 
-El repositorio incluye audios de prueba en `assets/samples/` (`sala1_sample.wav` en español, `sala2_sample.wav` en ingles). Para hacer streaming de un audio completo a una sala:
+Los audios de prueba **no estan en el repo** (estan en `.gitignore` por el peso). Descargalos con:
+
+```bash
+pip install yt-dlp
+python -m src.download_samples
+# Genera: assets/samples/tech_conf_es.wav  (conferencia en español)
+#         assets/samples/ted_tech_en.wav   (TED talk en ingles)
+```
+
+O descarga un audio propio de YouTube:
+
+```bash
+python -m src.download_samples --url "https://youtube.com/watch?v=XXXX" --name mi_charla
+```
+
+Despues hace streaming del WAV a una sala (`--lang` setea el idioma fuente de la sala antes de empezar):
 
 ```bash
 # Sala 1 - audio en español
-python -m src.stream_sample --room sala-1 --wav assets/samples/sala1_sample.wav
+python -m src.stream_sample --room sala-1 --wav assets/samples/tech_conf_es.wav --lang es
 
 # Sala 2 - audio en ingles
-python -m src.stream_sample --room sala-2 --wav assets/samples/sala2_sample.wav
+python -m src.stream_sample --room sala-2 --wav assets/samples/ted_tech_en.wav --lang en
 ```
 
 Esto trocea el WAV en chunks de 3s con solapamiento y los envia secuencialmente simulando streaming en vivo. Mientras corre, abri el overlay o el cliente web para ver los subtitulos.
@@ -392,7 +408,7 @@ Hackathon-Nerdearla/
 |   |   |-- components/         # SubtitleDisplay, ReactionsBar, ExportButton, ui/
 |
 |-- assets/
-|   |-- samples/                # Audios de prueba (sala1_sample.wav, sala2_sample.wav)
+|   |-- samples/                # Audios de prueba (gitignored; descargar con download_samples.py)
 |-- docs/                       # Documentacion adicional
 |-- requirements.txt
 |-- LICENSE
@@ -424,8 +440,8 @@ Toda la configuracion es sobreescribible via env (ver `src/config.py`):
 |---|---|
 | `python -m src.run_test` | Test de integracion del pipeline (Gemma + Whisper) |
 | `python src/test_e2e.py` | Test end-to-end: envia audio y recibe subtitulos via WS |
-| `python -m src.stream_sample --room sala-1 --wav assets/samples/sala1_sample.wav` | Streaming de un WAV completo a una sala |
-| `python -m src.download_samples` | Descarga audios de prueba a `samples/` |
+| `python -m src.stream_sample --room sala-1 --wav assets/samples/tech_conf_es.wav --lang es` | Streaming de un WAV completo a una sala |
+| `python -m src.download_samples` | Descarga audios de prueba a `assets/samples/` |
 
 ---
 
