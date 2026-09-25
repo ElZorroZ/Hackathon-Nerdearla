@@ -154,7 +154,8 @@ export function SubtitleDisplay({
             )}
             {showTranslated && (
               <p className={`text-foreground leading-relaxed font-medium ${fontClass}`}>
-                {s.translations?.[lang] || s.translated}
+                {s.translations?.[lang] ??
+                  (lang === "es" ? s.translated || s.original : s.original || s.translated)}
               </p>
             )}
           </div>

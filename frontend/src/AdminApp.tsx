@@ -34,7 +34,7 @@ export function AdminApp() {
   const menuIconRef = useRef<MenuIconHandle>(null);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomLang, setNewRoomLang] = useState("ES");
+  const [newRoomLang, setNewRoomLang] = useState("es");
   const [recording, setRecording] = useState(false);
   const [recordRoom, setRecordRoom] = useState("");
   const [recordLang, setRecordLang] = useState("es");
@@ -506,9 +506,6 @@ export function AdminApp() {
                         <SelectItem value="es">Español</SelectItem>
                         <SelectItem value="en">English</SelectItem>
                         <SelectItem value="pt">Português</SelectItem>
-                        <SelectItem value="fr">Français</SelectItem>
-                        <SelectItem value="it">Italiano</SelectItem>
-                        <SelectItem value="de">Deutsch</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -628,9 +625,9 @@ export function AdminApp() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ES">Español</SelectItem>
-                        <SelectItem value="EN">English</SelectItem>
-                        <SelectItem value="PT">Português</SelectItem>
+                        <SelectItem value="es">Español</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="pt">Português</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

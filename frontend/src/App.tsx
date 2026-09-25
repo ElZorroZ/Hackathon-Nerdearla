@@ -77,11 +77,24 @@ export function App() {
     onMessage: handleWsMessage,
   });
 
-  // Notify backend of the selected target language so it translates accordingly
+  // Notify backend of the selected target language so it translates accordingly.
+  // Retry until the socket is OPEN (handles reconnects where ws.current swaps).
   useEffect(() => {
-    const socket = ws.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN || !selectedRoom) return;
-    socket.send(JSON.stringify({ type: "lang", lang }));
+    if (!selectedRoom) return;
+    let attempts = 0;
+    let timer: number | undefined;
+    const send = () => {
+      const socket = ws.current;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "lang", lang }));
+        return;
+      }
+      if (attempts++ < 40) timer = window.setTimeout(send, 250);
+    };
+    send();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [lang, selectedRoom, connected, ws]);
 
   const pauseRef = useRef<PauseIconHandle>(null);
