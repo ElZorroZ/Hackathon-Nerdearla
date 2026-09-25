@@ -52,8 +52,8 @@ export function StageApp() {
     },
   });
 
-  // QR code points to mobile view
-  const mobileUrl = `${window.location.origin}/mobile?room=${room}`;
+  // QR code points to main index with the room preselected
+  const mobileUrl = `${window.location.origin}/?room=${room}`;
 
   return (
     <div

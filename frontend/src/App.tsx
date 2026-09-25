@@ -120,7 +120,12 @@ export function App() {
   useEffect(() => {
     api.getRooms().then((data) => {
       setRooms(data.rooms || []);
-      if (data.rooms.length > 0) setSelectedRoom(data.rooms[0].id);
+      const urlRoom = new URLSearchParams(window.location.search).get("room");
+      if (urlRoom && data.rooms.some((r) => r.id === urlRoom)) {
+        setSelectedRoom(urlRoom);
+      } else if (data.rooms.length > 0) {
+        setSelectedRoom(data.rooms[0].id);
+      }
     });
   }, []);
 

@@ -203,8 +203,18 @@ class RoomManager:
                 try:
                     prev_text = self._last_text.get(room_id, "")
                     room_lang = self._room_langs.get(room_id, "es")
+                    # Inyectar términos del glosario en el prompt de Whisper para que
+                    # la transcripción reconozca vocabulario técnico (initial_prompt bias)
+                    glossary_hint = ""
+                    if self.translator.glossary:
+                        terms = ", ".join(self.translator.glossary.get_all().keys())
+                        if terms:
+                            glossary_hint = f"Glosario: {terms}."
+                    whisper_prompt = " ".join(
+                        p for p in [prev_text, glossary_hint] if p
+                    )
                     original, detected_lang, avg_logprob, no_speech_prob = self.whisper.transcribe(
-                        chunk.audio_bytes, language=room_lang, initial_prompt=prev_text
+                        chunk.audio_bytes, language=room_lang, initial_prompt=whisper_prompt
                     )
                     t1 = time.perf_counter()
 
