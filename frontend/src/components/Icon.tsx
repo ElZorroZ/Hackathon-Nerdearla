@@ -17,7 +17,8 @@ type IconName =
   | "users"
   | "clock"
   | "monitor"
-  | "sync";
+  | "sync"
+  | "close";
 
 const paths: Record<IconName, JSX.Element> = {
   mic: (
@@ -120,6 +121,12 @@ const paths: Record<IconName, JSX.Element> = {
       <polyline points="3 3 3 8 8 8" />
       <path d="M3 12a9 9 0 0 0 9 9 9 9 0 0 0 6.36-2.64L21 16" />
       <polyline points="21 21 21 16 16 16" />
+    </>
+  ),
+  close: (
+    <>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </>
   ),
 };

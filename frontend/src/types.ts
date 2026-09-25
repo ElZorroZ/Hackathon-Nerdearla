@@ -19,6 +19,9 @@ export interface RoomMetrics {
   last_whisper_ms: number;
   last_gemma_ms: number;
   last_error: string | null;
+  audio_quality: "good" | "warning" | "critical";
+  avg_logprob: number;
+  no_speech_prob: number;
 }
 
 export interface SystemMetrics {
@@ -50,4 +53,21 @@ export interface GlossaryResponse {
 export interface GlossaryTerm {
   original: string;
   translation: string;
+}
+
+export interface KeyMoment {
+  timestamp: number;
+  time_str: string;
+  title: string;
+  subtitle_index: number;
+}
+
+export interface SummaryResponse {
+  room: string;
+  summary: string;
+}
+
+export interface KeyMomentsResponse {
+  room: string;
+  moments: KeyMoment[];
 }

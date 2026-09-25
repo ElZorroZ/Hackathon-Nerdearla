@@ -1,0 +1,11 @@
+{
+  "name": "LiveSubs",
+  "short_name": "LiveSubs",
+  "description": "Subtitulos en vivo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#6366f1",
+  "orientation": "portrait",
+  "icons": []
+}

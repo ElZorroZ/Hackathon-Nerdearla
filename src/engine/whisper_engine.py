@@ -59,18 +59,18 @@ class WhisperEngine:
         self._loaded = True
         logger.info("faster-whisper cargado en GPU ✓")
 
-    def transcribe(self, audio_bytes: bytes, language: str = None, initial_prompt: str = "") -> tuple[str, str]:
-        """Transcribe audio bytes (WAV 16kHz mono) a texto. Returns (text, detected_language)."""
+    def transcribe(self, audio_bytes: bytes, language: str = None, initial_prompt: str = "") -> tuple[str, str, float, float]:
+        """Transcribe audio bytes (WAV 16kHz mono) a texto. Returns (text, detected_language, avg_logprob, no_speech_prob)."""
         audio_np = self._bytes_to_numpy(audio_bytes)
         if audio_np.size == 0:
-            return "", ""
+            return "", "", 0.0, 1.0
 
         # Filtrar chunks de silencio (RMS muy bajo)
         rms = np.sqrt(np.mean(audio_np ** 2))
         logger.debug("Chunk RMS=%.4f size=%d", rms, audio_np.size)
         if rms < 0.01:
             logger.debug("Chunk descartado por silencio (RMS=%.4f)", rms)
-            return "", ""
+            return "", "", 0.0, 1.0
 
         # Usar las últimas palabras como contexto para Whisper
         prompt = initial_prompt.strip()
@@ -93,33 +93,36 @@ class WhisperEngine:
             kwargs["language"] = language
 
         segments, info = self.model.transcribe(audio_np, **kwargs)
-        text = " ".join(seg.text.strip() for seg in segments).strip()
+        seg_list = list(segments)
+        text = " ".join(seg.text.strip() for seg in seg_list).strip()
         detected_lang = info.language if info else ""
+        avg_logprob = sum(s.avg_logprob for s in seg_list) / len(seg_list) if seg_list else 0.0
+        no_speech_prob = max((s.no_speech_prob for s in seg_list), default=0.0)
 
         # Filtrar transcripciones basura (muy cortas o repetitivas)
         if len(text) < 2:
-            return "", ""
+            return "", "", avg_logprob, no_speech_prob
         words = text.split()
         if len(words) > 0:
             unique_ratio = len(set(words)) / len(words)
             if unique_ratio < 0.4 and len(words) > 2:
                 logger.debug("Chunk descartado por repetitivo: %s", text[:60])
-                return "", ""
+                return "", "", avg_logprob, no_speech_prob
 
         # Filtrar solo garbage obvio
         GARBAGE_PATTERNS = {"music", "[music]", "!!!!", "..."}
         if text.lower().strip() in GARBAGE_PATTERNS:
             logger.debug("Chunk descartado por garbage: %s", text[:60])
-            return "", ""
+            return "", "", avg_logprob, no_speech_prob
 
         # Filtrar texto con caracteres no-latinos (CJK, Korean, etc.)
         latin_chars = sum(1 for c in text if c.isascii() or c in "áéíóúñüÁÉÍÓÚÑÜ¿¡")
         if len(text) > 0 and latin_chars / len(text) < 0.8:
             logger.warning("Chunk descartado por caracteres no-latinos: %s", text[:60])
-            return "", ""
+            return "", "", avg_logprob, no_speech_prob
 
-        logger.info("Whisper: lang=%s text=%s", detected_lang, text[:80])
-        return text, detected_lang
+        logger.info("Whisper: lang=%s logprob=%.2f no_speech=%.2f text=%s", detected_lang, avg_logprob, no_speech_prob, text[:80])
+        return text, detected_lang, avg_logprob, no_speech_prob
 
     @staticmethod
     def _bytes_to_numpy(audio_bytes: bytes) -> np.ndarray:

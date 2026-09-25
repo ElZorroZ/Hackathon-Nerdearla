@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "./api";
 import type { SubtitleEntry, RoomInfo } from "./types";
 import { Icon } from "./components/Icon";
@@ -6,6 +6,8 @@ import { SubtitleDisplay } from "./components/SubtitleDisplay";
 import { PauseIcon, type PauseIconHandle } from "@/components/ui/pause-icon";
 import { PlayIcon, type PlayIconHandle } from "@/components/ui/play-icon";
 import { WifiSyncIcon, type WifiSyncIconHandle } from "@/components/ui/wifi-sync-icon";
+import { SummaryModal } from "./components/SummaryModal";
+import { KeyMomentsPanel } from "./components/KeyMomentsPanel";
 import {
   Select,
   SelectContent,
@@ -32,15 +34,48 @@ export function App() {
   const [fontSize, setFontSize] = useState("md");
   const [autoScroll, setAutoScroll] = useState(true);
   const [subtitles, setSubtitles] = useState<SubtitleEntry[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
+  const subtitleListRef = useRef<HTMLDivElement>(null);
 
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = selectedRoom ? `${proto}//${window.location.host}/ws/${selectedRoom}` : null;
 
+  // Load cached subtitles from localStorage on room change
+  useEffect(() => {
+    if (!selectedRoom) return;
+    try {
+      const cached = localStorage.getItem(`subs_${selectedRoom}`);
+      if (cached) {
+        const parsed: SubtitleEntry[] = JSON.parse(cached);
+        setSubtitles(parsed);
+      } else {
+        setSubtitles([]);
+      }
+    } catch {
+      setSubtitles([]);
+    }
+  }, [selectedRoom]);
+
+  const handleWsMessage = useCallback((data: SubtitleEntry) => {
+    if (data.type === "metrics") return;
+    if (data.type === "key_moment") {
+      window.dispatchEvent(new CustomEvent("key_moment", { detail: data }));
+      return;
+    }
+    setSubtitles((prev: SubtitleEntry[]) => {
+      const next = [...prev, data].slice(-200);
+      // Persist to localStorage for offline resilience
+      try {
+        localStorage.setItem(`subs_${data.room || selectedRoom}`, JSON.stringify(next));
+      } catch {
+        // localStorage may be full, ignore
+      }
+      return next;
+    });
+  }, [selectedRoom]);
+
   const { connected, reconnecting, flush } = useResilientWebSocket(wsUrl, {
-    onMessage: (data: SubtitleEntry) => {
-      if (data.type === "metrics") return;
-      setSubtitles((prev: SubtitleEntry[]) => [...prev, data].slice(-200));
-    },
+    onMessage: handleWsMessage,
   });
 
   const pauseRef = useRef<PauseIconHandle>(null);
@@ -213,9 +248,8 @@ export function App() {
               autoScroll
                 ? "bg-secondary border-border text-foreground"
                 : "bg-secondary border-border text-muted-foreground"
-            }`
-          }
-          title={autoScroll ? "Pausar auto-scroll" : "Reanudar auto-scroll"}
+            }`}
+            title={autoScroll ? "Pausar auto-scroll" : "Reanudar auto-scroll"}
           >
             {autoScroll ? (
               <PauseIcon ref={pauseRef} size={14} isAnimated={false} />
@@ -224,7 +258,31 @@ export function App() {
             )}
           </button>
 
+          {/* AI Summary button */}
+          <button
+            onClick={() => setShowSummary(true)}
+            disabled={!selectedRoom}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all shrink-0 bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Generar Resumen con IA"
+          >
+            ✨
+          </button>
         </div>
+
+        {/* Key Moments Timeline */}
+        {selectedRoom && (
+          <KeyMomentsPanel
+            room={selectedRoom}
+            onJumpToSubtitle={(index) => {
+              const el = document.getElementById(`sub-${index}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("ring-2", "ring-primary", "transition-all");
+                setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 2000);
+              }
+            }}
+          />
+        )}
 
         {/* Subtitle Display */}
         <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col min-h-0">
@@ -250,6 +308,10 @@ export function App() {
           LiveSubs · Subtítulos en vivo
         </p>
       </footer>
+
+      {showSummary && selectedRoom && (
+        <SummaryModal room={selectedRoom} onClose={() => setShowSummary(false)} />
+      )}
     </div>
   );
 }

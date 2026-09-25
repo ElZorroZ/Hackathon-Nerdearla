@@ -93,3 +93,63 @@ class GemmaTranslator:
             if words >= 3 and matches >= 2 and matches / max(words, 1) > 0.2:
                 return True
         return False
+
+    def summarize(self, text: str, lang: str = "es") -> str:
+        """Genera un resumen ejecutivo con Gemma 2B."""
+        if not text.strip():
+            return "Sin contenido para resumir."
+
+        lang_name = self.LANG_NAMES.get(lang, self.LANG_NAMES.get(self.target_lang, "Spanish"))
+        prompt = (
+            f"Actúa como un asistente técnico de conferencias. "
+            f"Genera un resumen ejecutivo breve de la siguiente charla en exactamente "
+            f"3 puntos clave (bullet points) y una lista de 5 palabras clave (keywords). "
+            f"Responde en {lang_name}.\n\nTexto: {text[:3000]}"
+        )
+
+        try:
+            response = self.client.generate(
+                model=self.model,
+                prompt=prompt,
+                options={
+                    "temperature": 0.3,
+                    "num_predict": 256,
+                    "stop": ["\n\n\n"],
+                },
+            )
+            return response.get("response", "").strip()
+        except Exception as e:
+            logger.error("Error en Gemma summary: %s", e)
+            return f"Error generando resumen: {e}"
+
+    def extract_key_moment(self, text: str, lang: str = "es") -> str:
+        """Extrae un título corto (3-5 palabras) del tema actual."""
+        if not text.strip():
+            return ""
+
+        lang_name = self.LANG_NAMES.get(lang, self.LANG_NAMES.get(self.target_lang, "Spanish"))
+        prompt = (
+            f"Give a very short title (3 to 5 words) summarizing the topic of this text. "
+            f"Respond in {lang_name}. Output ONLY the title, nothing else.\n\n"
+            f"Text: {text[:500]}"
+        )
+
+        try:
+            response = self.client.generate(
+                model=self.model,
+                prompt=prompt,
+                options={
+                    "temperature": 0.2,
+                    "num_predict": 20,
+                    "stop": ["\n", "Text:", "Title:"],
+                },
+            )
+            title = response.get("response", "").strip()
+            # Clean up: remove quotes, extra whitespace
+            title = title.strip('"\'').strip()
+            if len(title) > 60:
+                title = title[:57] + "..."
+            return title
+        except Exception as e:
+            logger.error("Error en Gemma key_moment: %s", e)
+            return ""

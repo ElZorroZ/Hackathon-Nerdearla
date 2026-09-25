@@ -112,6 +112,7 @@ export function SubtitleDisplay({
         return (
           <div
             key={s.index || i}
+            id={`sub-${s.index}`}
             className={`subtitle-enter rounded-lg px-3 py-2 transition-all ${
               isLatest
                 ? "bg-secondary/60 border-l-2 border-primary"

@@ -7,6 +7,12 @@ import { StageApp } from "./StageApp";
 import { MobileApp } from "./MobileApp";
 import "./index.css";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 const path = window.location.pathname;
 const root = createRoot(document.getElementById("root")!);
 

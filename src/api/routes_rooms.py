@@ -151,3 +151,24 @@ def init_room_routes(
             "estimated_latency_s": round(est_latency, 2),
             "mode": mode,
         }
+
+    @router.post("/rooms/{room_id}/summary")
+    async def generate_summary(room_id: str):
+        """Genera un resumen ejecutivo con IA del historial de la sala."""
+        if room_id not in rooms:
+            raise HTTPException(status_code=404, detail="Sala no existe")
+        text = manager.get_transcript_text(room_id)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Sin contenido para resumir")
+        lang = manager.get_room_lang(room_id)
+        summary = manager.translator.summarize(text, lang)
+        logger.info("[%s] Resumen generado (%d chars)", room_id, len(summary))
+        return {"room": room_id, "summary": summary}
+
+    @router.get("/rooms/{room_id}/key-moments")
+    async def get_key_moments(room_id: str):
+        """Retorna los hitos/key moments de una sala."""
+        if room_id not in rooms:
+            raise HTTPException(status_code=404, detail="Sala no existe")
+        moments = manager.get_key_moments(room_id)
+        return {"room": room_id, "moments": moments}

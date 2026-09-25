@@ -1,4 +1,4 @@
-import type { RoomsResponse, GlossaryResponse, GlossaryTerm } from "./types";
+import type { RoomsResponse, GlossaryResponse, GlossaryTerm, SummaryResponse, KeyMomentsResponse } from "./types";
 
 const API_BASE = "";
 
@@ -91,6 +91,16 @@ export const api = {
 
   setRoomLang: async (room: string, lang: string): Promise<unknown> => {
     const resp = await fetchWithNgrok(`/api/rooms/${room}/language?lang=${lang}`, { method: "PUT" });
+    return resp.json();
+  },
+
+  getSummary: async (room: string): Promise<SummaryResponse> => {
+    const resp = await fetchWithNgrok(`/api/rooms/${room}/summary`, { method: "POST" });
+    return resp.json();
+  },
+
+  getKeyMoments: async (room: string): Promise<KeyMomentsResponse> => {
+    const resp = await fetchWithNgrok(`/api/rooms/${room}/key-moments`);
     return resp.json();
   },
 

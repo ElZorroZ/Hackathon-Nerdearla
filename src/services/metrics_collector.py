@@ -21,13 +21,14 @@ class MetricsCollector:
             if room_id not in self._rooms:
                 self._rooms[room_id] = RoomMetrics(room_id=room_id)
 
-    def record_subtitle(self, room_id: str, whisper_ms: float, gemma_ms: float):
+    def record_subtitle(self, room_id: str, whisper_ms: float, gemma_ms: float, avg_logprob: float = 0.0, no_speech_prob: float = 0.0):
         with self._lock:
             if room_id not in self._rooms:
                 self._rooms[room_id] = RoomMetrics(room_id=room_id)
             m = self._rooms[room_id]
             m.total_subtitles += 1
             m.update_latency(whisper_ms, gemma_ms)
+            m.update_audio_quality(avg_logprob, no_speech_prob)
             m.status = "active"
 
     def record_error(self, room_id: str, error: str):
@@ -67,6 +68,9 @@ class MetricsCollector:
                     "last_whisper_ms": round(m.last_whisper_ms, 1),
                     "last_gemma_ms": round(m.last_gemma_ms, 1),
                     "last_error": m.last_error,
+                    "audio_quality": m.audio_quality,
+                    "avg_logprob": round(m.avg_logprob, 3),
+                    "no_speech_prob": round(m.no_speech_prob, 3),
                 }
                 for m in self._rooms.values()
             ]

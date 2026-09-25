@@ -85,6 +85,18 @@ async def lifespan(app: FastAPI):
     manager.start()
     logger.info("Motor listo. Salas: %s", DEFAULT_ROOMS)
 
+    # Key moment callback: broadcast via WebSocket to room clients
+    _loop = asyncio.get_event_loop()
+
+    def _key_moment_callback(km_data: dict):
+        """Called from RoomManager thread to broadcast key moments via WS."""
+        asyncio.run_coroutine_threadsafe(
+            ws_manager.broadcast_to_room(km_data["room_id"], km_data),
+            _loop,
+        )
+
+    manager.on_key_moment(_key_moment_callback)
+
     # Inicializar routers con dependencias (después de que los globals estén listos)
     init_room_routes(manager, DEFAULT_ROOMS, ws_manager, metrics)
     init_export_routes(subtitle_store, DEFAULT_ROOMS)
@@ -202,3 +214,22 @@ async def serve_frontend():
 
 if os.path.isdir(DIST_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
+
+    @app.get("/manifest.json")
+    async def serve_manifest():
+        path = os.path.join(DIST_DIR, "manifest.json")
+        if os.path.exists(path):
+            from fastapi.responses import JSONResponse
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                return JSONResponse(content=json.load(f))
+        return JSONResponse(content={})
+
+    @app.get("/sw.js")
+    async def serve_sw():
+        path = os.path.join(DIST_DIR, "sw.js")
+        if os.path.exists(path):
+            from fastapi.responses import PlainTextResponse
+            with open(path, "r", encoding="utf-8") as f:
+                return PlainTextResponse(f.read(), media_type="application/javascript")
+        return PlainTextResponse("", media_type="application/javascript")

@@ -7,7 +7,7 @@ import time
 from typing import Optional
 
 from src.config import CHUNK_DURATION
-from src.models import AudioChunk, SubtitleEntry
+from src.models import AudioChunk, SubtitleEntry, KeyMoment
 from src.engine.whisper_engine import WhisperEngine
 from src.engine.translator import GemmaTranslator
 from src.services.subtitle_store import SubtitleStore
@@ -38,6 +38,9 @@ class RoomManager:
         self._paused: set[str] = set()
         self._last_text: dict[str, str] = {}  # contexto por sala
         self._room_langs: dict[str, str] = {}  # idioma fuente por sala
+        self._word_counts: dict[str, int] = {}  # contador de palabras por sala
+        self._key_moments: dict[str, list[KeyMoment]] = {}  # hitos por sala
+        self._key_moment_callbacks: list = []  # callbacks para emitir key moments vía WS
 
     def add_room(self, room_id: str, lang: str = "es") -> None:
         with self._lock:
@@ -47,6 +50,8 @@ class RoomManager:
                 self.store.register_room(room_id)
                 self.metrics.register_room(room_id)
                 self._room_langs[room_id] = lang
+                self._word_counts[room_id] = 0
+                self._key_moments[room_id] = []
                 logger.info("Sala registrada: %s (lang=%s)", room_id, lang)
 
     # Zero-Lag: si la cola acumula más de MAX_QUEUE_LAG chunks, flush y tomar el más reciente
@@ -59,6 +64,28 @@ class RoomManager:
 
     def get_room_lang(self, room_id: str) -> str:
         return self._room_langs.get(room_id, "es")
+
+    def get_key_moments(self, room_id: str) -> list[dict]:
+        moments = self._key_moments.get(room_id, [])
+        import datetime
+        return [
+            {
+                "timestamp": km.timestamp,
+                "time_str": datetime.datetime.fromtimestamp(km.timestamp).strftime("%H:%M:%S"),
+                "title": km.title,
+                "subtitle_index": km.subtitle_index,
+            }
+            for km in moments
+        ]
+
+    def on_key_moment(self, callback) -> None:
+        """Registra un callback para emitir key moments vía WebSocket."""
+        self._key_moment_callbacks.append(callback)
+
+    def get_transcript_text(self, room_id: str) -> str:
+        """Devuelve todo el historial de transcripción de una sala como texto plano."""
+        entries = self.store.get_all(room_id)
+        return " ".join(e.original for e in entries if e.original)
 
     def submit_audio(self, room_id: str, audio_bytes: bytes) -> None:
         if room_id in self.audio_queues and room_id not in self._paused:
@@ -158,7 +185,7 @@ class RoomManager:
                 try:
                     prev_text = self._last_text.get(room_id, "")
                     room_lang = self._room_langs.get(room_id, "es")
-                    original, detected_lang = self.whisper.transcribe(
+                    original, detected_lang, avg_logprob, no_speech_prob = self.whisper.transcribe(
                         chunk.audio_bytes, language=room_lang, initial_prompt=prev_text
                     )
                     t1 = time.perf_counter()
@@ -166,6 +193,8 @@ class RoomManager:
                     if not original:
                         # Limpiar contexto si el chunk fue descartado
                         self._last_text[room_id] = ""
+                        # Still record audio quality even if text was empty
+                        self.metrics.record_subtitle(room_id, 0, 0, avg_logprob, no_speech_prob)
                         continue
 
                     # Deduplicar solapamiento: si el inicio del texto nuevo coincide
@@ -200,7 +229,14 @@ class RoomManager:
                     )
 
                     self.store.add(entry)
-                    self.metrics.record_subtitle(room_id, whisper_ms, gemma_ms)
+                    self.metrics.record_subtitle(room_id, whisper_ms, gemma_ms, avg_logprob, no_speech_prob)
+
+                    # Key Moments: extraer título cada ~300 palabras
+                    word_count = len(original.split())
+                    self._word_counts[room_id] = self._word_counts.get(room_id, 0) + word_count
+                    if self._word_counts[room_id] >= 300:
+                        self._word_counts[room_id] = 0
+                        self._extract_key_moment(room_id, room_lang, entry.index)
 
                     try:
                         self.results_queues[room_id].put_nowait(entry)
@@ -253,3 +289,44 @@ class RoomManager:
                              max_overlap, new[:60], deduped[:60])
                 return deduped
         return new
+
+    def _extract_key_moment(self, room_id: str, lang: str, subtitle_index: int) -> None:
+        """Extrae un título de tema con Gemma en segundo plano."""
+        try:
+            # Usar las últimas ~30 entradas como contexto
+            entries = self.store.get_all(room_id)
+            recent = entries[-30:] if len(entries) > 30 else entries
+            text = " ".join(e.original for e in recent if e.original)
+            if len(text) < 20:
+                return
+
+            title = self.translator.extract_key_moment(text, lang)
+            if not title:
+                return
+
+            km = KeyMoment(
+                room_id=room_id,
+                timestamp=time.time(),
+                title=title,
+                subtitle_index=subtitle_index,
+            )
+            self._key_moments.setdefault(room_id, []).append(km)
+            logger.info("[%s] Key moment: %s", room_id, title)
+
+            # Notificar callbacks (para emitir vía WS)
+            import datetime
+            km_data = {
+                "type": "key_moment",
+                "room_id": room_id,
+                "timestamp": km.timestamp,
+                "time_str": datetime.datetime.fromtimestamp(km.timestamp).strftime("%H:%M:%S"),
+                "title": title,
+                "subtitle_index": subtitle_index,
+            }
+            for cb in self._key_moment_callbacks:
+                try:
+                    cb(km_data)
+                except Exception as e:
+                    logger.error("Error en key_moment callback: %s", e)
+        except Exception as e:
+            logger.error("[%s] Error extrayendo key moment: %s", room_id, e)
